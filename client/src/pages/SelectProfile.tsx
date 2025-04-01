@@ -157,8 +157,8 @@ const SelectProfile: React.FC<SelectProfileProps> = ({
             {showProfileDetails && selectedProfile && (
               <div className="mb-6">
                 <h3 className="text-md font-medium mb-2">Profile Details</h3>
-                <div className="bg-muted rounded-md p-4">
-                  <div className="grid grid-cols-2 gap-4">
+                <div className="bg-muted rounded-md p-4 space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <span className="block text-sm text-muted-foreground">Name:</span>
                       <span className="block text-sm font-medium">{selectedProfile.name}</span>
@@ -168,10 +168,8 @@ const SelectProfile: React.FC<SelectProfileProps> = ({
                       <span className="block text-sm font-medium">{selectedProfile.version || 'N/A'}</span>
                     </div>
                     <div>
-                      <span className="block text-sm text-muted-foreground">URL:</span>
-                      <span className="block text-sm font-medium text-primary overflow-hidden text-ellipsis">
-                        {selectedProfile.url}
-                      </span>
+                      <span className="block text-sm text-muted-foreground">Resource Type:</span>
+                      <span className="block text-sm font-medium capitalize">{selectedProfile.resourceType}</span>
                     </div>
                     <div>
                       <span className="block text-sm text-muted-foreground">Status:</span>
@@ -180,6 +178,32 @@ const SelectProfile: React.FC<SelectProfileProps> = ({
                       </span>
                     </div>
                   </div>
+                  
+                  <div>
+                    <span className="block text-sm text-muted-foreground">URL:</span>
+                    <span className="block text-sm font-medium text-primary break-all">
+                      {selectedProfile.url}
+                    </span>
+                  </div>
+                  
+                  <div>
+                    <span className="block text-sm text-muted-foreground">Description:</span>
+                    <span className="block text-sm mt-1">
+                      {selectedProfile.description || 'No description available.'}
+                    </span>
+                  </div>
+                  
+                  {/* Show structure definition */}
+                  {selectedProfile.structureDefinition && (
+                    <div className="mt-4">
+                      <span className="block text-sm text-muted-foreground font-medium mb-1">Structure Definition:</span>
+                      <div className="bg-card border rounded-md p-3 max-h-60 overflow-y-auto">
+                        <pre className="text-xs whitespace-pre-wrap">
+                          {JSON.stringify(selectedProfile.structureDefinition, null, 2)}
+                        </pre>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

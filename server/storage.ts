@@ -62,14 +62,24 @@ export class MemStorage implements IStorage {
   }
 
   private initializeUSCore() {
-    const usCore: InsertImplementationGuide = {
+    // US Core 5.0.1
+    const usCore5: InsertImplementationGuide = {
       name: "US Core",
       version: "5.0.1",
       url: "https://www.hl7.org/fhir/us/core/",
       description: "The US Core Implementation Guide is based on FHIR Version R4 and defines the minimum conformance requirements for accessing patient data."
     };
     
-    this.createImplementationGuide(usCore)
+    // US Core 6.1.0
+    const usCore6: InsertImplementationGuide = {
+      name: "US Core",
+      version: "6.1.0",
+      url: "https://www.hl7.org/fhir/us/core/",
+      description: "The US Core Implementation Guide version 6.1.0 is based on FHIR Version R4 and provides essential updates to the specification."
+    };
+    
+    // Initialize US Core 5.0.1
+    this.createImplementationGuide(usCore5)
       .then(guide => {
         // Add common resource profiles
         const resourceTypes = [
@@ -94,6 +104,54 @@ export class MemStorage implements IStorage {
             version: "5.0.1",
             description: `The US Core ${type} Profile is based on FHIR Version R4.`,
             structureDefinition: { resourceType: "StructureDefinition" }
+          };
+          
+          this.createProfile(profile).catch(console.error);
+        });
+      })
+      .catch(console.error);
+    
+    // Initialize US Core 6.1.0
+    this.createImplementationGuide(usCore6)
+      .then(guide => {
+        // Add common resource profiles with updated structure definitions
+        const resourceTypes = [
+          "Patient",
+          "Practitioner",
+          "Organization",
+          "Observation",
+          "Condition",
+          "Procedure",
+          "MedicationRequest",
+          "Immunization",
+          "AllergyIntolerance",
+          "Encounter",
+          "DocumentReference", // Added in 6.1.0
+          "Provenance",       // Added in 6.1.0
+          "CarePlan"          // Added in 6.1.0
+        ];
+        
+        resourceTypes.forEach(type => {
+          const profile: InsertProfile = {
+            implementationGuideId: guide.id,
+            resourceType: type.toLowerCase(),
+            name: `US Core ${type} Profile`,
+            url: `http://hl7.org/fhir/us/core/StructureDefinition/us-core-${type.toLowerCase()}`,
+            version: "6.1.0",
+            description: `The US Core ${type} Profile version 6.1.0, based on FHIR Version R4.`,
+            structureDefinition: { 
+              resourceType: "StructureDefinition",
+              url: `http://hl7.org/fhir/us/core/StructureDefinition/us-core-${type.toLowerCase()}`,
+              version: "6.1.0",
+              name: `USCore${type}Profile`,
+              status: "active",
+              fhirVersion: "4.0.1",
+              kind: "resource",
+              abstract: false,
+              type: type,
+              baseDefinition: `http://hl7.org/fhir/StructureDefinition/${type}`,
+              derivation: "constraint"
+            }
           };
           
           this.createProfile(profile).catch(console.error);

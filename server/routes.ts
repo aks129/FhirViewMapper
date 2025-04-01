@@ -71,7 +71,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const profiles = await storage.getProfiles(id);
-      const resourceTypes = [...new Set(profiles.map(profile => profile.resourceType))];
+      const resourceTypesSet = new Set<string>();
+      profiles.forEach(profile => resourceTypesSet.add(profile.resourceType));
+      const resourceTypes = Array.from(resourceTypesSet);
       
       res.json(resourceTypes);
     } catch (error) {
@@ -133,7 +135,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         schema: z.string().min(1),
         includeExtensions: z.boolean(),
         normalizeTables: z.boolean(),
-        apiKey: z.string().min(1)
+        apiKey: z.string().optional()
       });
 
       const validationResult = transformSchema.safeParse(req.body);
@@ -146,8 +148,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { schema, includeExtensions, normalizeTables, apiKey } = validationResult.data;
       
-      // Set the API key for this request
-      process.env.ANTHROPIC_API_KEY = apiKey;
+      // If API key is provided, use it, otherwise use the environment variable
+      if (apiKey) {
+        process.env.ANTHROPIC_API_KEY = apiKey;
+      }
+      
+      // Ensure there's an API key available
+      if (!process.env.ANTHROPIC_API_KEY) {
+        return res.status(400).json({ message: "API key is required for transformation" });
+      }
 
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -180,9 +189,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         viewDefinition: transformationResult.viewDefinition,
         sqlQuery: transformationResult.sqlQuery
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error transforming profile:", error);
-      res.status(500).json({ message: `Failed to transform profile: ${error.message}` });
+      res.status(500).json({ message: `Failed to transform profile: ${error?.message || 'Unknown error'}` });
     } finally {
       // Clear the API key after the request
       delete process.env.ANTHROPIC_API_KEY;

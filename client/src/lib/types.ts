@@ -42,7 +42,7 @@ export interface TransformationRequest {
   schema: string;
   includeExtensions: boolean;
   normalizeTables: boolean;
-  apiKey: string;
+  apiKey?: string;
 }
 
 export interface TransformationResponse {

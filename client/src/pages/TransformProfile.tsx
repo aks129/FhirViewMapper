@@ -63,6 +63,9 @@ const TransformProfile: React.FC<TransformProfileProps> = ({
   // Transform mutation
   const transformMutation = useMutation({
     mutationFn: async (data: TransformationRequest) => {
+      if (!profile) {
+        throw new Error("No profile selected");
+      }
       const response = await apiRequest('POST', `/api/profiles/${profile.id}/transform`, data);
       return response.json();
     },
@@ -94,15 +97,6 @@ const TransformProfile: React.FC<TransformProfileProps> = ({
   };
 
   const handleTransform = () => {
-    if (!apiKey) {
-      toast({
-        variant: 'destructive',
-        title: 'API Key Required',
-        description: 'Please enter your Claude API key to continue.',
-      });
-      return;
-    }
-
     // Save transformation options
     onSetTransformationOptions({
       schema,
@@ -110,12 +104,12 @@ const TransformProfile: React.FC<TransformProfileProps> = ({
       normalizeTables
     });
 
-    // Transform profile
+    // Transform profile - use API key if provided, otherwise use environment variable
     transformMutation.mutate({
       schema,
       includeExtensions,
       normalizeTables,
-      apiKey
+      apiKey: apiKey || undefined
     });
   };
 
@@ -231,7 +225,7 @@ const TransformProfile: React.FC<TransformProfileProps> = ({
               </Button>
               <Button 
                 onClick={handleTransform}
-                disabled={!apiKey || !schema}
+                disabled={!schema}
                 className="flex items-center"
               >
                 Transform
