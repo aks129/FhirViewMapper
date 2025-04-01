@@ -66,10 +66,28 @@ const TransformProfile: React.FC<TransformProfileProps> = ({
       if (!profile) {
         throw new Error("No profile selected");
       }
-      const response = await apiRequest('POST', `/api/profiles/${profile.id}/transform`, data);
-      return response.json();
+      console.log('Starting profile transformation with profile ID:', profile.id);
+      
+      try {
+        const response = await apiRequest('POST', `/api/profiles/${profile.id}/transform`, data);
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          console.error('API response not ok:', response.status, errorData);
+          throw new Error(errorData.message || `API error: ${response.status}`);
+        }
+        
+        const jsonResult = await response.json();
+        console.log('Transformation successful, received result:', jsonResult);
+        return jsonResult;
+      } catch (error) {
+        console.error('Error during transformation request:', error);
+        throw error;
+      }
     },
     onSuccess: (data: TransformationResponse) => {
+      console.log('Transformation success, updating state and navigating');
+      
       // Update transformation options in parent component
       onSetTransformationOptions({
         schema,
@@ -84,6 +102,7 @@ const TransformProfile: React.FC<TransformProfileProps> = ({
       navigate('/transform/view-results');
     },
     onError: (error) => {
+      console.error('Transformation error in mutation handler:', error);
       toast({
         variant: 'destructive',
         title: 'Transformation failed',

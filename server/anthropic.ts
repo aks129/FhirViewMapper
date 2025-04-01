@@ -2,9 +2,17 @@ import Anthropic from '@anthropic-ai/sdk';
 
 // the newest Anthropic model is "claude-3-7-sonnet-20250219" which was released February 24, 2025
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY || '',
-});
+// Create Anthropic instance with dynamic API key
+function getAnthropicClient() {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  
+  if (!apiKey) {
+    throw new Error("ANTHROPIC_API_KEY is required but not provided");
+  }
+  
+  console.log("Creating Anthropic client with API key");
+  return new Anthropic({ apiKey });
+}
 
 // Transform FHIR profile to SQL on FHIR view definition
 export async function transformProfileToViewDefinition(
@@ -52,6 +60,10 @@ Your response should be in JSON format with two main sections:
 Return valid JSON only.
 `;
 
+    // Get client with the current API key
+    const anthropic = getAnthropicClient();
+    
+    console.log("Making API request to Claude...");
     const message = await anthropic.messages.create({
       model: 'claude-3-7-sonnet-20250219',
       max_tokens: 4000,
@@ -87,8 +99,8 @@ Return valid JSON only.
         throw new Error("Claude's response did not contain valid JSON");
       }
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error in transformProfileToViewDefinition:", error);
-    throw new Error(`Failed to transform profile: ${error.message}`);
+    throw new Error(`Failed to transform profile: ${error?.message || 'Unknown error'}`);
   }
 }
