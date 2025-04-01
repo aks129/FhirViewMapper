@@ -24,11 +24,11 @@ export async function transformProfileToViewDefinition(
   }
 ): Promise<{ viewDefinition: any, sqlQuery: string }> {
   try {
-    // Construct detailed prompt for Claude
+    // Construct detailed prompt for Claude following SQL on FHIR spec
     const prompt = `
 You are a healthcare interoperability expert specializing in FHIR and SQL databases.
 
-Your task is to transform a FHIR profile from an HL7 Implementation Guide into a SQL on FHIR view definition resource.
+Your task is to transform a FHIR profile from an HL7 Implementation Guide into a SQL on FHIR view definition resource following the official specification at https://build.fhir.org/ig/FHIR/sql-on-fhir-v2/StructureDefinition-ViewDefinition.html
 
 FHIR Profile details:
 - Name: ${profileData.name}
@@ -42,19 +42,31 @@ Configuration options:
 - Include Extensions: ${options.includeExtensions ? 'Yes' : 'No'}
 - Normalize Tables: ${options.normalizeTables ? 'Yes' : 'No'}
 
-Follow the SQL on FHIR specification (https://github.com/FHIR/sql-on-fhir-v2).
-
 INSTRUCTIONS:
-1. Generate a FHIR ViewDefinition resource that represents this profile as a SQL view
-2. Include appropriate metadata (resourceType, id, url, version, name, status, etc.)
-3. Create a 'definition' object that includes:
-   - The resource type this view is based on
-   - Select statements for relevant fields from the profile
-   - Where clauses that filter for resources conforming to this profile
-4. Also generate the actual SQL query that would be used to create this view
+1. Generate a FHIR ViewDefinition resource that follows the SQL on FHIR specification
+2. The ViewDefinition must include these required elements:
+   - resourceType: "ViewDefinition"
+   - id: A unique identifier
+   - status: "active" or appropriate status
+   - name: A name for the view
+   - kind: "sql-derived" for SQL derived views
+   - resourceModel: Information about the resource model
+   - definition: The SQL view definition with:
+     - resourceType: Base resource type
+     - select: Array of column mappings
+     - where: Criteria for resources in the view
 
-Your response should be in JSON format with two main sections:
-1. "viewDefinition": The complete FHIR ViewDefinition resource
+3. Also generate the actual SQL query that would create this view in a SQL database
+
+Make sure the generated ViewDefinition follows the exact structure from the specification. The schema should include:
+- The view name should match the profile name
+- All important fields from the profile should be mapped to columns
+- A where clause that identifies resources conforming to this profile
+- Include extension fields if the includeExtensions option is true
+- Create a normalized table structure if normalizeTables is true
+
+Your response should be in this exact JSON format, with two sections:
+1. "viewDefinition": The complete FHIR ViewDefinition resource that exactly follows the specification
 2. "sqlQuery": The SQL CREATE VIEW statement
 
 Return valid JSON only.

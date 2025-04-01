@@ -24,8 +24,12 @@ const ViewResults: React.FC<ViewResultsProps> = ({
 
   // If no transformation result, redirect to step 1
   useEffect(() => {
+    console.log("ViewResults component mounted, transformationResult:", transformationResult);
     if (!transformationResult) {
+      console.log("No transformation result, redirecting to start");
       navigate('/transform');
+    } else {
+      console.log("Showing transformation result:", transformationResult);
     }
   }, [transformationResult, navigate]);
   

@@ -172,11 +172,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Profile not found" });
       }
 
+      console.log(`Transforming profile ID ${profile.id} (${profile.name}) with Claude...`);
       const transformationResult = await transformProfileToViewDefinition(profile, {
         schema,
         includeExtensions,
         normalizeTables
       });
+      console.log("Transformation successful, saving to database");
+
+      // Ensure viewDefinition follows SQL on FHIR spec
+      if (!transformationResult.viewDefinition.resourceType) {
+        transformationResult.viewDefinition.resourceType = "ViewDefinition";
+      }
 
       // Save the transformation
       const transformation = await storage.createTransformation({
@@ -187,6 +194,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         viewDefinition: transformationResult.viewDefinition,
         sqlQuery: transformationResult.sqlQuery
       });
+      
+      console.log(`Transformation saved with ID: ${transformation.id}`);
 
       res.json({
         transformationId: transformation.id,

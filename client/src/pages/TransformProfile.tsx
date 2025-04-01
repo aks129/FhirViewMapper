@@ -86,7 +86,7 @@ const TransformProfile: React.FC<TransformProfileProps> = ({
       }
     },
     onSuccess: (data: TransformationResponse) => {
-      console.log('Transformation success, updating state and navigating');
+      console.log('Transformation success, updating state and navigating', data);
       
       // Update transformation options in parent component
       onSetTransformationOptions({
@@ -97,9 +97,13 @@ const TransformProfile: React.FC<TransformProfileProps> = ({
 
       // Pass transformation result to parent
       onTransformationComplete(data);
-
-      // Navigate to results page
-      navigate('/transform/view-results');
+      
+      // Add a slight delay to ensure state is updated before navigation
+      setTimeout(() => {
+        // Navigate to results page
+        navigate('/transform/view-results');
+        console.log('Navigation to results page triggered');
+      }, 100);
     },
     onError: (error) => {
       console.error('Transformation error in mutation handler:', error);

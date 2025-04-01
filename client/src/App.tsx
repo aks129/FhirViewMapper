@@ -48,10 +48,15 @@ function Router() {
   };
 
   const handleTransformationComplete = (result: TransformationResponse) => {
-    setTransformerState(prev => ({
-      ...prev,
-      transformationResult: result,
-    }));
+    console.log("handleTransformationComplete called with result:", result);
+    setTransformerState(prevState => {
+      const newState = {
+        ...prevState,
+        transformationResult: result,
+      };
+      console.log("Updating transformer state:", newState);
+      return newState;
+    });
   };
 
   const handleNewTransformation = () => {
