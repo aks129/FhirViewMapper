@@ -1,6 +1,7 @@
-import { pgTable, text, serial, json, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, json, timestamp, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import { relations } from "drizzle-orm";
 
 // Main users table
 export const users = pgTable("users", {
@@ -23,6 +24,10 @@ export const implementationGuides = pgTable("implementation_guides", {
   description: text("description"),
 });
 
+export const implementationGuidesRelations = relations(implementationGuides, ({ many }) => ({
+  profiles: many(profiles),
+}));
+
 export const insertImplementationGuideSchema = createInsertSchema(implementationGuides).pick({
   name: true,
   version: true,
@@ -33,7 +38,7 @@ export const insertImplementationGuideSchema = createInsertSchema(implementation
 // Profiles table
 export const profiles = pgTable("profiles", {
   id: serial("id").primaryKey(),
-  implementationGuideId: serial("implementation_guide_id").notNull(),
+  implementationGuideId: integer("implementation_guide_id").notNull().references(() => implementationGuides.id),
   resourceType: text("resource_type").notNull(),
   name: text("name").notNull(),
   url: text("url").notNull(),
@@ -41,6 +46,14 @@ export const profiles = pgTable("profiles", {
   description: text("description"),
   structureDefinition: json("structure_definition"),
 });
+
+export const profilesRelations = relations(profiles, ({ one, many }) => ({
+  implementationGuide: one(implementationGuides, {
+    fields: [profiles.implementationGuideId],
+    references: [implementationGuides.id],
+  }),
+  transformations: many(transformations),
+}));
 
 export const insertProfileSchema = createInsertSchema(profiles).pick({
   implementationGuideId: true,
@@ -55,7 +68,7 @@ export const insertProfileSchema = createInsertSchema(profiles).pick({
 // Transformations table
 export const transformations = pgTable("transformations", {
   id: serial("id").primaryKey(),
-  profileId: serial("profile_id").notNull(),
+  profileId: integer("profile_id").notNull().references(() => profiles.id),
   schema: text("schema").notNull(),
   includeExtensions: text("include_extensions").notNull(),
   normalizeTables: text("normalize_tables").notNull(),
@@ -63,6 +76,13 @@ export const transformations = pgTable("transformations", {
   sqlQuery: text("sql_query"),
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+export const transformationsRelations = relations(transformations, ({ one }) => ({
+  profile: one(profiles, {
+    fields: [transformations.profileId],
+    references: [profiles.id],
+  }),
+}));
 
 export const insertTransformationSchema = createInsertSchema(transformations).pick({
   profileId: true,
