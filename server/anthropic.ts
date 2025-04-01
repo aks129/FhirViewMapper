@@ -70,8 +70,23 @@ Return valid JSON only.
       messages: [{ role: 'user', content: prompt }],
     });
 
-    // Parse the response content
-    const content = message.content[0].text;
+    // Extract the response content
+    if (!message.content || message.content.length === 0) {
+      throw new Error("Empty response from Claude");
+    }
+    
+    // Handle different types of content blocks
+    let content = '';
+    for (const block of message.content) {
+      if (block.type === 'text') {
+        content = block.text;
+        break;
+      }
+    }
+    
+    if (!content) {
+      throw new Error("No text content found in Claude's response");
+    }
 
     try {
       // Try to parse the JSON response

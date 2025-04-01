@@ -130,6 +130,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Transform a profile to a view definition
   app.post("/api/profiles/:id/transform", async (req, res) => {
+    // Store the original API key
+    const originalApiKey: string | undefined = process.env.ANTHROPIC_API_KEY;
+    
     try {
       const transformSchema = z.object({
         schema: z.string().min(1),
@@ -148,15 +151,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { schema, includeExtensions, normalizeTables, apiKey } = validationResult.data;
       
-      // If API key is provided, use it, otherwise use the environment variable
-      if (apiKey) {
-        process.env.ANTHROPIC_API_KEY = apiKey;
-      }
+      // Use the API key from the environment or from the request
+      const anthropicApiKey = apiKey || process.env.ANTHROPIC_API_KEY;
       
       // Ensure there's an API key available
-      if (!process.env.ANTHROPIC_API_KEY) {
+      if (!anthropicApiKey) {
         return res.status(400).json({ message: "API key is required for transformation" });
       }
+      
+      // Temporarily set the API key for this request
+      process.env.ANTHROPIC_API_KEY = anthropicApiKey;
 
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -193,8 +197,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error transforming profile:", error);
       res.status(500).json({ message: `Failed to transform profile: ${error?.message || 'Unknown error'}` });
     } finally {
-      // Clear the API key after the request
-      delete process.env.ANTHROPIC_API_KEY;
+      // Restore the original API key
+      if (originalApiKey) {
+        process.env.ANTHROPIC_API_KEY = originalApiKey;
+      } else {
+        delete process.env.ANTHROPIC_API_KEY;
+      }
     }
   });
 
