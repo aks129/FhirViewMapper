@@ -22,7 +22,17 @@ export async function transformProfileToViewDefinition(
     includeExtensions: boolean, 
     normalizeTables: boolean 
   }
-): Promise<{ viewDefinition: any, sqlQuery: string }> {
+): Promise<{ 
+  viewDefinition: any, 
+  sqlQuery: string,
+  platformSql?: {
+    databricks?: string,
+    bigquery?: string,
+    snowflake?: string,
+    postgres?: string,
+    sqlserver?: string
+  }
+}> {
   try {
     // Construct detailed prompt for Claude following SQL on FHIR spec
     const prompt = `
@@ -65,9 +75,17 @@ Make sure the generated ViewDefinition follows the exact structure from the spec
 - Include extension fields if the includeExtensions option is true
 - Create a normalized table structure if normalizeTables is true
 
-Your response should be in this exact JSON format, with two sections:
+Your response should be in this exact JSON format, with the following sections:
 1. "viewDefinition": The complete FHIR ViewDefinition resource that exactly follows the specification
-2. "sqlQuery": The SQL CREATE VIEW statement
+2. "sqlQuery": The standard ANSI SQL CREATE VIEW statement
+3. "platformSql": A JSON object containing SQL scripts for different platforms with these keys:
+   - "databricks": SQL script optimized for Databricks SQL
+   - "bigquery": SQL script for Google BigQuery
+   - "snowflake": SQL script for Snowflake
+   - "postgres": SQL script for PostgreSQL
+   - "sqlserver": SQL script for Microsoft SQL Server
+
+Each platform-specific SQL script should account for the platform's syntax differences and optimize for its specific features.
 
 Return valid JSON only.
 `;
@@ -105,7 +123,14 @@ Return valid JSON only.
       const result = JSON.parse(content);
       return {
         viewDefinition: result.viewDefinition,
-        sqlQuery: result.sqlQuery
+        sqlQuery: result.sqlQuery,
+        platformSql: result.platformSql || {
+          databricks: result.sqlQuery,
+          bigquery: result.sqlQuery,
+          snowflake: result.sqlQuery,
+          postgres: result.sqlQuery,
+          sqlserver: result.sqlQuery
+        }
       };
     } catch (parseError) {
       // If the response isn't valid JSON, try to extract JSON from it
@@ -117,7 +142,14 @@ Return valid JSON only.
           const extractedJson = JSON.parse(jsonStr);
           return {
             viewDefinition: extractedJson.viewDefinition,
-            sqlQuery: extractedJson.sqlQuery
+            sqlQuery: extractedJson.sqlQuery,
+            platformSql: extractedJson.platformSql || {
+              databricks: extractedJson.sqlQuery,
+              bigquery: extractedJson.sqlQuery,
+              snowflake: extractedJson.sqlQuery,
+              postgres: extractedJson.sqlQuery,
+              sqlserver: extractedJson.sqlQuery
+            }
           };
         } catch (e) {
           throw new Error("Failed to extract valid JSON from Claude's response");

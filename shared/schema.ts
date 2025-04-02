@@ -74,6 +74,7 @@ export const transformations = pgTable("transformations", {
   normalizeTables: text("normalize_tables").notNull(),
   viewDefinition: json("view_definition"),
   sqlQuery: text("sql_query"),
+  platformSql: json("platform_sql"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -91,6 +92,7 @@ export const insertTransformationSchema = createInsertSchema(transformations).pi
   normalizeTables: true,
   viewDefinition: true,
   sqlQuery: true,
+  platformSql: true,
 });
 
 // Type exports

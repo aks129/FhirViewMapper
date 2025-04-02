@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { ArrowLeft, RefreshCw, CheckCircle, TableProperties } from 'lucide-react';
 import { JsonViewer } from '@/components/ui/json-viewer';
+import { SqlExporter } from '@/components/ui/sql-exporter';
 import { TransformationResponse } from '@/lib/types';
 
 interface ViewResultsProps {
@@ -153,16 +154,11 @@ const ViewResults: React.FC<ViewResultsProps> = ({
             </Tabs>
           </div>
           
-          <div className="mb-6 border border-muted rounded-md overflow-hidden">
-            <div className="bg-muted px-4 py-3 border-b border-muted">
-              <h3 className="text-md font-medium">Generated SQL Query</h3>
-            </div>
-            <div className="p-4 bg-white overflow-auto max-h-[200px]">
-              <pre className="text-sm text-neutral-800 font-mono">
-                {transformationResult.sqlQuery}
-              </pre>
-            </div>
-          </div>
+          <SqlExporter 
+            standardSql={transformationResult.sqlQuery}
+            platformSql={transformationResult.platformSql}
+            className="mb-6"
+          />
           
           <div className="flex justify-between">
             <Button 

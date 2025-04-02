@@ -49,6 +49,13 @@ export interface TransformationResponse {
   transformationId: number;
   viewDefinition: any;
   sqlQuery: string;
+  platformSql?: {
+    databricks?: string;
+    bigquery?: string;
+    snowflake?: string;
+    postgres?: string;
+    sqlserver?: string;
+  };
 }
 
 // Wizard state types

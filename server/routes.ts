@@ -192,7 +192,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         includeExtensions: includeExtensions.toString(),
         normalizeTables: normalizeTables.toString(),
         viewDefinition: transformationResult.viewDefinition,
-        sqlQuery: transformationResult.sqlQuery
+        sqlQuery: transformationResult.sqlQuery,
+        platformSql: transformationResult.platformSql
       });
       
       console.log(`Transformation saved with ID: ${transformation.id}`);
@@ -200,7 +201,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({
         transformationId: transformation.id,
         viewDefinition: transformationResult.viewDefinition,
-        sqlQuery: transformationResult.sqlQuery
+        sqlQuery: transformationResult.sqlQuery,
+        platformSql: transformationResult.platformSql
       });
     } catch (error: any) {
       console.error("Error transforming profile:", error);
