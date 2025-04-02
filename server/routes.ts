@@ -134,6 +134,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const originalApiKey: string | undefined = process.env.ANTHROPIC_API_KEY;
     
     try {
+      console.log("Received transformation request with body:", JSON.stringify({
+        ...req.body,
+        apiKey: req.body.apiKey ? "[REDACTED]" : undefined
+      }));
+      
       const transformSchema = z.object({
         schema: z.string().min(1),
         includeExtensions: z.boolean(),
@@ -152,7 +157,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { schema, includeExtensions, normalizeTables, apiKey } = validationResult.data;
       
       // Use the API key from the environment or from the request
-      const anthropicApiKey = apiKey || process.env.ANTHROPIC_API_KEY;
+      let anthropicApiKey = originalApiKey;
+      
+      // If an API key was provided in the request and it's not empty, use it
+      if (apiKey && apiKey.trim() !== "") {
+        console.log("Using API key provided in the request");
+        anthropicApiKey = apiKey.trim();
+      } else {
+        console.log("Using API key from environment variables");
+      }
       
       // Ensure there's an API key available
       if (!anthropicApiKey) {

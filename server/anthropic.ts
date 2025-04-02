@@ -10,8 +10,15 @@ function getAnthropicClient() {
     throw new Error("ANTHROPIC_API_KEY is required but not provided");
   }
   
+  if (apiKey.trim() === '') {
+    throw new Error("ANTHROPIC_API_KEY cannot be empty");
+  }
+  
   console.log("Creating Anthropic client with API key");
-  return new Anthropic({ apiKey });
+  return new Anthropic({ 
+    apiKey,
+    maxRetries: 3, // Add retries for reliability
+  });
 }
 
 // Transform FHIR profile to SQL on FHIR view definition
@@ -68,37 +75,56 @@ INSTRUCTIONS:
 
 3. Also generate the actual SQL query that would create this view in a SQL database
 
-Make sure the generated ViewDefinition follows the exact structure from the specification. The schema should include:
-- The view name should match the profile name
-- All important fields from the profile should be mapped to columns
-- A where clause that identifies resources conforming to this profile
-- Include extension fields if the includeExtensions option is true
-- Create a normalized table structure if normalizeTables is true
+Your response MUST be in pure, parseable JSON format ONLY. No prose, explanations, or markdown code blocks. Return a single valid JSON object with the following properties:
 
-Your response should be in this exact JSON format, with the following sections:
-1. "viewDefinition": The complete FHIR ViewDefinition resource that exactly follows the specification
-2. "sqlQuery": The standard ANSI SQL CREATE VIEW statement
-3. "platformSql": A JSON object containing SQL scripts for different platforms with these keys:
-   - "databricks": SQL script optimized for Databricks SQL
-   - "bigquery": SQL script for Google BigQuery
-   - "snowflake": SQL script for Snowflake
-   - "postgres": SQL script for PostgreSQL
-   - "sqlserver": SQL script for Microsoft SQL Server
+{
+  "viewDefinition": {
+    // The complete FHIR ViewDefinition resource
+    "resourceType": "ViewDefinition",
+    "id": "...",
+    ...
+  },
+  "sqlQuery": "-- Standard ANSI SQL query here",
+  "platformSql": {
+    "databricks": "-- Databricks SQL",
+    "bigquery": "-- BigQuery SQL",
+    "snowflake": "-- Snowflake SQL",
+    "postgres": "-- PostgreSQL query",
+    "sqlserver": "-- MS SQL Server query"
+  }
+}
 
-Each platform-specific SQL script should account for the platform's syntax differences and optimize for its specific features.
+Notes:
+- Make the view name match the profile name
+- Include important fields as columns
+- Write a where clause that identifies resources conforming to this profile
+- Include extension fields if the includeExtensions option is "Yes"
+- Create a normalized table structure if normalizeTables is "Yes"
+- Each platform-specific SQL script should account for syntax differences
 
-Return valid JSON only.
+RESPONSE FORMAT: Return ONLY valid, parseable JSON without any explanations, markdown formatting, or code blocks.
 `;
 
     // Get client with the current API key
     const anthropic = getAnthropicClient();
     
     console.log("Making API request to Claude...");
-    const message = await anthropic.messages.create({
-      model: 'claude-3-7-sonnet-20250219',
-      max_tokens: 4000,
-      messages: [{ role: 'user', content: prompt }],
+    
+    // Create a timeout promise that will reject after 120 seconds
+    const timeout = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error("API request timed out after 120 seconds")), 120000);
     });
+    
+    // Race the Claude API call against the timeout
+    const message = await Promise.race([
+      anthropic.messages.create({
+        model: 'claude-3-7-sonnet-20250219',
+        max_tokens: 4000,
+        messages: [{ role: 'user', content: prompt }],
+        system: "You are a healthcare interoperability expert specializing in SQL on FHIR. Respond with valid JSON only, following the exact format requested.",
+      }),
+      timeout
+    ]) as Anthropic.Messages.Message;
 
     // Extract the response content
     if (!message.content || message.content.length === 0) {
@@ -117,10 +143,34 @@ Return valid JSON only.
     if (!content) {
       throw new Error("No text content found in Claude's response");
     }
-
+    
+    // Clean up the content to extract just the JSON
+    // First, try to find JSON content between triple backticks
+    let jsonContent = content;
+    const codeBlockMatch = content.match(/```(?:json)?\s*(\{[\s\S]*\})\s*```/);
+    if (codeBlockMatch && codeBlockMatch[1]) {
+      jsonContent = codeBlockMatch[1];
+    }
+    
+    // Otherwise, try to find JSON content between curly braces
+    else {
+      const jsonMatch = content.match(/(\{[\s\S]*\})/);
+      if (jsonMatch && jsonMatch[1]) {
+        jsonContent = jsonMatch[1];
+      }
+    }
+    
+    console.log("Extracted JSON content, attempting to parse...");
+    
     try {
       // Try to parse the JSON response
-      const result = JSON.parse(content);
+      const result = JSON.parse(jsonContent);
+      
+      // Validate that result has the expected structure
+      if (!result.viewDefinition || !result.sqlQuery) {
+        throw new Error("Claude's response is missing required fields (viewDefinition or sqlQuery)");
+      }
+      
       return {
         viewDefinition: result.viewDefinition,
         sqlQuery: result.sqlQuery,
@@ -133,30 +183,35 @@ Return valid JSON only.
         }
       };
     } catch (parseError) {
-      // If the response isn't valid JSON, try to extract JSON from it
-      // Look for JSON-like content within the response using regex
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const jsonStr = jsonMatch[0];
-        try {
-          const extractedJson = JSON.parse(jsonStr);
-          return {
-            viewDefinition: extractedJson.viewDefinition,
-            sqlQuery: extractedJson.sqlQuery,
-            platformSql: extractedJson.platformSql || {
-              databricks: extractedJson.sqlQuery,
-              bigquery: extractedJson.sqlQuery,
-              snowflake: extractedJson.sqlQuery,
-              postgres: extractedJson.sqlQuery,
-              sqlserver: extractedJson.sqlQuery
+      console.error("Failed to parse JSON:", parseError);
+      console.log("JSON content that failed to parse:", jsonContent.substring(0, 500) + "...");
+      
+      // More aggressive approach to extract JSON - look for any object-like structure
+      const objectMatches = jsonContent.match(/\{[^{}]*\}/g);
+      if (objectMatches && objectMatches.length > 0) {
+        for (const match of objectMatches) {
+          try {
+            const potentialJson = JSON.parse(match);
+            if (potentialJson.viewDefinition && potentialJson.sqlQuery) {
+              return {
+                viewDefinition: potentialJson.viewDefinition,
+                sqlQuery: potentialJson.sqlQuery,
+                platformSql: potentialJson.platformSql || {
+                  databricks: potentialJson.sqlQuery,
+                  bigquery: potentialJson.sqlQuery,
+                  snowflake: potentialJson.sqlQuery,
+                  postgres: potentialJson.sqlQuery,
+                  sqlserver: potentialJson.sqlQuery
+                }
+              };
             }
-          };
-        } catch (e) {
-          throw new Error("Failed to extract valid JSON from Claude's response");
+          } catch (e) {
+            // Continue trying other matches
+          }
         }
-      } else {
-        throw new Error("Claude's response did not contain valid JSON");
       }
+      
+      throw new Error("Failed to extract valid JSON from Claude's response. Try a simpler profile or adjust options.");
     }
   } catch (error: any) {
     console.error("Error in transformProfileToViewDefinition:", error);
