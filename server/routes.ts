@@ -191,12 +191,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
         includeExtensions,
         normalizeTables
       });
-      console.log("Transformation successful, saving to database");
+      console.log("Transformation successful, validating ViewDefinition structure...");
 
       // Ensure viewDefinition follows SQL on FHIR spec
       if (!transformationResult.viewDefinition.resourceType) {
         transformationResult.viewDefinition.resourceType = "ViewDefinition";
       }
+      
+      // Validate 'select' structure is flat array, not object with numeric keys
+      if (transformationResult.viewDefinition.definition && 
+          transformationResult.viewDefinition.definition.select) {
+        const select = transformationResult.viewDefinition.definition.select;
+        
+        // If select is an object with numeric keys, convert to array
+        if (!Array.isArray(select) && typeof select === 'object') {
+          console.log("Converting select from object to array format...");
+          const selectArray = Object.values(select);
+          transformationResult.viewDefinition.definition.select = selectArray;
+        }
+        
+        // Validate each select item has path and name properties
+        if (Array.isArray(transformationResult.viewDefinition.definition.select)) {
+          transformationResult.viewDefinition.definition.select.forEach(item => {
+            if (!item.path) {
+              console.warn("Select item missing 'path' property:", item);
+            }
+            if (!item.name) {
+              console.warn("Select item missing 'name' property:", item);
+              // Auto-fix: generate name from last part of path
+              if (item.path) {
+                const pathParts = item.path.split('.');
+                item.name = pathParts[pathParts.length - 1];
+              }
+            }
+          });
+        }
+      }
+      
+      console.log("ViewDefinition validated, saving to database");
 
       // Save the transformation
       const transformation = await storage.createTransformation({

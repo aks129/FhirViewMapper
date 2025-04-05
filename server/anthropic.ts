@@ -59,48 +59,87 @@ Configuration options:
 - Include Extensions: ${options.includeExtensions ? 'Yes' : 'No'}
 - Normalize Tables: ${options.normalizeTables ? 'Yes' : 'No'}
 
+CRITICAL POINT ABOUT SELECT STRUCTURE:
+The "select" field in the ViewDefinition must be a flat array of objects, each with "path" and "name" properties. 
+DO NOT use numbered indices like "0", "1", etc., in the selection array. 
+
+CORRECT structure (flat array):
+"select": [
+  { "path": "id", "name": "id" },
+  { "path": "meta.profile", "name": "profile" },
+  { "path": "status", "name": "status" }
+]
+
+INCORRECT structure (with numbered indices):
+"select": {
+  "0": { "path": "id", "name": "id" },
+  "1": { "path": "meta.profile", "name": "profile" },
+  "2": { "path": "status", "name": "status" }
+}
+
 INSTRUCTIONS:
 1. Generate a FHIR ViewDefinition resource that follows the SQL on FHIR specification
 2. The ViewDefinition must include these required elements:
    - resourceType: "ViewDefinition"
-   - id: A unique identifier
+   - id: A unique identifier (kebab-case format recommended)
    - status: "active" or appropriate status
-   - name: A name for the view
+   - name: A name for the view (PascalCase format recommended)
    - kind: "sql-derived" for SQL derived views
    - resourceModel: Information about the resource model
    - definition: The SQL view definition with:
      - resourceType: Base resource type
-     - select: Array of column mappings
+     - select: Array of column mappings as described above (MUST be a flat array)
      - where: Criteria for resources in the view
 
 3. Also generate the actual SQL query that would create this view in a SQL database
+   - The SQL query should use proper FHIRPath traversal syntax
+   - Make sure the SQL syntax is correct and would work in real databases
 
 Your response MUST be in pure, parseable JSON format ONLY. No prose, explanations, or markdown code blocks. Return a single valid JSON object with the following properties:
 
 {
   "viewDefinition": {
-    // The complete FHIR ViewDefinition resource
     "resourceType": "ViewDefinition",
-    "id": "...",
-    ...
+    "id": "example-view-id",
+    "url": "http://example.org/fhir/ViewDefinition/example-view-id",
+    "version": "1.0.0",
+    "name": "ExampleViewName",
+    "status": "active",
+    "kind": "sql-derived",
+    "resourceModel": {
+      "source": {
+        "reference": "http://hl7.org/fhir/us/core/StructureDefinition/example-profile"
+      }
+    },
+    "definition": {
+      "resourceType": "Patient",
+      "select": [
+        { "path": "id", "name": "id" },
+        { "path": "meta.profile", "name": "profile" }
+      ],
+      "where": [
+        { "fhirPath": "meta.profile.contains('http://example.org/fhir/Profile/example')" }
+      ]
+    }
   },
-  "sqlQuery": "-- Standard ANSI SQL query here",
+  "sqlQuery": "CREATE VIEW example_view AS SELECT id, meta.profile FROM Patient WHERE meta.profile LIKE '%http://example.org/fhir/Profile/example%'",
   "platformSql": {
-    "databricks": "-- Databricks SQL",
-    "bigquery": "-- BigQuery SQL",
-    "snowflake": "-- Snowflake SQL",
-    "postgres": "-- PostgreSQL query",
-    "sqlserver": "-- MS SQL Server query"
+    "databricks": "CREATE VIEW example_view AS SELECT id, meta.profile FROM Patient WHERE array_contains(meta.profile, 'http://example.org/fhir/Profile/example')",
+    "bigquery": "CREATE VIEW example_view AS SELECT id, meta.profile FROM Patient WHERE 'http://example.org/fhir/Profile/example' IN UNNEST(meta.profile)",
+    "snowflake": "CREATE VIEW example_view AS SELECT id, meta.profile FROM Patient WHERE array_contains(meta.profile, 'http://example.org/fhir/Profile/example')",
+    "postgres": "CREATE VIEW example_view AS SELECT id, meta.profile FROM Patient WHERE meta.profile @> ARRAY['http://example.org/fhir/Profile/example']",
+    "sqlserver": "CREATE VIEW example_view AS SELECT id, meta.profile FROM Patient WHERE JSON_QUERY(meta, '$.profile') LIKE '%http://example.org/fhir/Profile/example%'"
   }
 }
 
 Notes:
-- Make the view name match the profile name
-- Include important fields as columns
+- Make the view name match the profile name (with appropriate formatting)
+- Include important fields as columns with correct paths
 - Write a where clause that identifies resources conforming to this profile
 - Include extension fields if the includeExtensions option is "Yes"
 - Create a normalized table structure if normalizeTables is "Yes"
 - Each platform-specific SQL script should account for syntax differences
+- Always use properly formatted "select" array as described above
 
 RESPONSE FORMAT: Return ONLY valid, parseable JSON without any explanations, markdown formatting, or code blocks.
 `;
