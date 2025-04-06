@@ -60,36 +60,39 @@ Configuration options:
 - Normalize Tables: ${options.normalizeTables ? 'Yes' : 'No'}
 
 CRITICAL POINT ABOUT SELECT STRUCTURE:
-The "select" field in the ViewDefinition must be a flat array of objects, each with "path" and "name" properties. 
-DO NOT use numbered indices like "0", "1", etc., in the selection array. 
+The "select" field in the ViewDefinition must follow the latest SQL on FHIR specification format.
+It should be structured as an array of objects, each containing either a "column" array 
+or a "forEach" expression with a nested "column" array.
 
-CORRECT structure (flat array):
+CORRECT structure for ViewDefinition select:
 "select": [
-  { "path": "id", "name": "id" },
-  { "path": "meta.profile", "name": "profile" },
-  { "path": "status", "name": "status" }
+  {
+    "column": [
+      {"name": "patient_id", "path": "getResourceKey()"},
+      {"name": "gender", "path": "gender"}
+    ]
+  },
+  {
+    "forEach": "name.where(use = 'official').first()",
+    "column": [
+      {"path": "given.join(' ')", "name": "given_name"},
+      {"path": "family", "name": "family_name"}
+    ]
+  }
 ]
 
-INCORRECT structure (with numbered indices):
-"select": {
-  "0": { "path": "id", "name": "id" },
-  "1": { "path": "meta.profile", "name": "profile" },
-  "2": { "path": "status", "name": "status" }
-}
+This structure allows for both direct column selection and nested iterations over collections.
 
 INSTRUCTIONS:
-1. Generate a FHIR ViewDefinition resource that follows the SQL on FHIR specification
+1. Generate a FHIR ViewDefinition resource that follows the latest SQL on FHIR specification
 2. The ViewDefinition must include these required elements:
    - resourceType: "ViewDefinition"
    - id: A unique identifier (kebab-case format recommended)
    - status: "active" or appropriate status
-   - name: A name for the view (PascalCase format recommended)
-   - kind: "sql-derived" for SQL derived views
-   - resourceModel: Information about the resource model
-   - definition: The SQL view definition with:
-     - resourceType: Base resource type
-     - select: Array of column mappings as described above (MUST be a flat array)
-     - where: Criteria for resources in the view
+   - name: A name for the view (snake_case format recommended for SQL compatibility)
+   - resource: The base FHIR resource type this view is based on (e.g., "Patient", "Observation")
+   - select: Array with column definitions as described above
+   - where: FHIRPath expressions to filter the resources
 
 3. Also generate the actual SQL query that would create this view in a SQL database
    - The SQL query should use proper FHIRPath traversal syntax
@@ -103,24 +106,28 @@ Your response MUST be in pure, parseable JSON format ONLY. No prose, explanation
     "id": "example-view-id",
     "url": "http://example.org/fhir/ViewDefinition/example-view-id",
     "version": "1.0.0",
-    "name": "ExampleViewName",
+    "name": "example_view_name",
+    "resource": "Patient",
     "status": "active",
-    "kind": "sql-derived",
-    "resourceModel": {
-      "source": {
-        "reference": "http://hl7.org/fhir/us/core/StructureDefinition/example-profile"
+    "select": [
+      {
+        "column": [
+          {"name": "patient_id", "path": "getResourceKey()"},
+          {"name": "gender", "path": "gender"},
+          {"name": "birth_date", "path": "birthDate"}
+        ]
+      },
+      {
+        "forEach": "name.where(use = 'official').first()",
+        "column": [
+          {"path": "given.join(' ')", "name": "given_name"},
+          {"path": "family", "name": "family_name"}
+        ]
       }
-    },
-    "definition": {
-      "resourceType": "Patient",
-      "select": [
-        { "path": "id", "name": "id" },
-        { "path": "meta.profile", "name": "profile" }
-      ],
-      "where": [
-        { "fhirPath": "meta.profile.contains('http://example.org/fhir/Profile/example')" }
-      ]
-    }
+    ],
+    "where": [
+      {"fhirPath": "meta.profile.contains('http://example.org/fhir/Profile/example')"}
+    ]
   },
   "sqlQuery": "CREATE VIEW example_view AS SELECT id, meta.profile FROM Patient WHERE meta.profile LIKE '%http://example.org/fhir/Profile/example%'",
   "platformSql": {

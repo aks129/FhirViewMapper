@@ -198,34 +198,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
         transformationResult.viewDefinition.resourceType = "ViewDefinition";
       }
       
-      // Validate 'select' structure is flat array, not object with numeric keys
-      if (transformationResult.viewDefinition.definition && 
-          transformationResult.viewDefinition.definition.select) {
-        const select = transformationResult.viewDefinition.definition.select;
+      // Validate and convert ViewDefinition to the latest SQL on FHIR format
+      
+      // Handle legacy 'definition' format (convert to direct properties if needed)
+      if (transformationResult.viewDefinition.definition) {
+        console.log("Converting legacy definition format to direct properties format...");
         
-        // If select is an object with numeric keys, convert to array
-        if (!Array.isArray(select) && typeof select === 'object') {
-          console.log("Converting select from object to array format...");
-          const selectArray = Object.values(select);
-          transformationResult.viewDefinition.definition.select = selectArray;
+        // Move resourceType to resource property
+        if (transformationResult.viewDefinition.definition.resourceType) {
+          transformationResult.viewDefinition.resource = transformationResult.viewDefinition.definition.resourceType;
         }
         
-        // Validate each select item has path and name properties
-        if (Array.isArray(transformationResult.viewDefinition.definition.select)) {
-          transformationResult.viewDefinition.definition.select.forEach(item => {
-            if (!item.path) {
-              console.warn("Select item missing 'path' property:", item);
-            }
-            if (!item.name) {
-              console.warn("Select item missing 'name' property:", item);
-              // Auto-fix: generate name from last part of path
-              if (item.path) {
-                const pathParts = item.path.split('.');
-                item.name = pathParts[pathParts.length - 1];
-              }
-            }
-          });
+        // Move select array
+        if (transformationResult.viewDefinition.definition.select) {
+          // First, check if it's an array or object with numeric keys
+          let selectArray = transformationResult.viewDefinition.definition.select;
+          
+          // Convert object with numeric keys to array if needed
+          if (!Array.isArray(selectArray) && typeof selectArray === 'object') {
+            console.log("Converting select from object to array format...");
+            selectArray = Object.values(selectArray);
+          }
+          
+          // Convert old format (flat array of {path, name}) to new format (array with column arrays)
+          if (Array.isArray(selectArray) && selectArray.length > 0 && 
+              selectArray[0].path && !selectArray[0].column) {
+            console.log("Converting select from flat array to column-based format...");
+            
+            // Restructure to new format
+            const newSelectArray = [{
+              column: selectArray.map(item => ({
+                name: item.name,
+                path: item.path
+              }))
+            }];
+            
+            transformationResult.viewDefinition.select = newSelectArray;
+          } else {
+            // Already in new format or empty
+            transformationResult.viewDefinition.select = selectArray;
+          }
         }
+        
+        // Move where array
+        if (transformationResult.viewDefinition.definition.where) {
+          transformationResult.viewDefinition.where = transformationResult.viewDefinition.definition.where;
+        }
+        
+        // Remove legacy definition object
+        delete transformationResult.viewDefinition.definition;
+      }
+      
+      // Ensure there's a resource property
+      if (!transformationResult.viewDefinition.resource) {
+        transformationResult.viewDefinition.resource = profile.resourceType;
+      }
+      
+      // Ensure select is properly formatted
+      if (!transformationResult.viewDefinition.select) {
+        console.warn("ViewDefinition missing 'select' property, creating an empty array");
+        transformationResult.viewDefinition.select = [];
+      }
+      
+      // Ensure where is properly formatted
+      if (!transformationResult.viewDefinition.where) {
+        // Create default where clause using the profile URL
+        transformationResult.viewDefinition.where = [
+          { fhirPath: `meta.profile.contains('${profile.url}')` }
+        ];
+        console.log("ViewDefinition missing 'where' property, creating default using profile URL");
       }
       
       console.log("ViewDefinition validated, saving to database");
