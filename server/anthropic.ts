@@ -41,6 +41,23 @@ export async function transformProfileToViewDefinition(
   }
 }> {
   try {
+    // Get the structure definition if available
+    const structureDefinition = profileData.structureDefinition || {};
+    const structureElements = structureDefinition.snapshot?.element || structureDefinition.differential?.element || [];
+    
+    // Extract mustSupport elements for better column generation
+    const mustSupportElements = structureElements.filter((element: any) => 
+      element.mustSupport === true || 
+      (element.type && element.type.length > 0 && element.max && element.max !== '0')
+    );
+    
+    // Identify fixed value constraints and slices
+    const slicesAndFixedValues = structureElements.filter((element: any) => 
+      element.sliceName || 
+      element.fixed || 
+      (element.patternCodeableConcept && element.patternCodeableConcept.coding)
+    );
+    
     // Construct detailed prompt for Claude following SQL on FHIR spec
     const prompt = `
 You are a healthcare interoperability expert specializing in FHIR and SQL databases.
@@ -56,8 +73,39 @@ FHIR Profile details:
 
 Configuration options:
 - Schema name: ${options.schema}
-- Include Extensions: ${options.includeExtensions ? 'Yes' : 'No'}
+- Include Extensions: ${options.includeExtensions ? 'Yes' : 'No'} 
 - Normalize Tables: ${options.normalizeTables ? 'Yes' : 'No'}
+
+${mustSupportElements.length > 0 ? `
+Important Profile Elements (mustSupport = true):
+${mustSupportElements.slice(0, 15).map((element: any) => 
+  `- ${element.path} (type: ${element.type ? element.type.map((t: any) => t.code).join('|') : 'unknown'}, max: ${element.max || '?'})`
+).join('\n')}
+` : ''}
+
+${slicesAndFixedValues.length > 0 ? `
+Slices and Fixed Values (for WHERE clauses):
+${slicesAndFixedValues.slice(0, 10).map((element: any) => {
+  let description = `- ${element.path}`;
+  
+  if (element.sliceName) {
+    description += ` (slice: ${element.sliceName})`;
+  }
+  
+  if (element.fixed) {
+    const fixedType = Object.keys(element.fixed)[0];
+    const fixedValue = element.fixed[fixedType];
+    description += ` (fixed ${fixedType}: ${fixedValue})`;
+  }
+  
+  if (element.patternCodeableConcept && element.patternCodeableConcept.coding) {
+    const coding = element.patternCodeableConcept.coding[0];
+    description += ` (pattern coding: system=${coding.system}, code=${coding.code})`;
+  }
+  
+  return description;
+}).join('\n')}
+` : ''}
 
 CRITICAL POINT ABOUT SELECT STRUCTURE:
 The "select" field in the ViewDefinition must follow the latest SQL on FHIR specification format.
@@ -81,7 +129,53 @@ CORRECT structure for ViewDefinition select:
   }
 ]
 
-This structure allows for both direct column selection and nested iterations over collections.
+GUIDELINES FOR HANDLING COMPLEX DATA TYPES:
+1. For CodeableConcept:
+   - Create columns for system, code, and display from the first coding
+   - Example: For "code" (CodeableConcept), create columns like:
+     - code_system: code.coding.first().system
+     - code_code: code.coding.first().code
+     - code_display: code.coding.first().display
+     - code_text: code.text
+
+2. For Identifier:
+   - Create columns for system, value, and use
+   - Example: For "identifier" (Identifier), create columns like:
+     - identifier_system: identifier.first().system
+     - identifier_value: identifier.first().value
+     - identifier_use: identifier.first().use
+
+3. For Reference:
+   - Extract the referenced resource ID
+   - Example: For "subject" (Reference(Patient)), create a column:
+     - subject_id: subject.getReferenceKey(Patient)
+
+4. For HumanName:
+   - Extract given, family, use
+   - Example: For "name" (HumanName), create columns like:
+     - name_given: name.first().given.join(' ')
+     - name_family: name.first().family
+     - name_use: name.first().use
+
+5. For Address:
+   - Extract line, city, state, postalCode
+   - Example: For "address" (Address), create columns like:
+     - address_line: address.first().line.join(', ')
+     - address_city: address.first().city
+     - address_state: address.first().state
+     - address_postal_code: address.first().postalCode
+
+HANDLING CARDINALITY:
+- For elements with max > 1, use .first() to select first element
+- For collections that need all values, use the forEach construct
+- Example: "name" array with multiple values, use:
+  {
+    "forEach": "name",
+    "column": [
+      {"path": "given.join(' ')", "name": "given_name"},
+      {"path": "family", "name": "family_name"}
+    ]
+  }
 
 Here is an example of a proper ViewDefinition for Observation resources (Blood Pressure):
 
@@ -326,20 +420,109 @@ RESPONSE FORMAT: Return ONLY valid, parseable JSON without any explanations, mar
         };
       }
       
-      // Last resort: Create a minimal viewDefinition from the profile data
-      console.log("Creating minimal viewDefinition from profile data");
+      // Last resort: Create a more robust viewDefinition from the profile data and structure definition
+      console.log("Creating fallback ViewDefinition from profile data and elements");
+      
+      // Get structure definition elements for better column generation
+      const structureDefinition = profileData.structureDefinition || {};
+      const elements = structureDefinition.snapshot?.element || structureDefinition.differential?.element || [];
+      
+      // Build a better select array with important elements
+      const mainColumns = [
+        { name: "id", path: "getResourceKey()" },
+        { name: "resource_type", path: "resourceType" }
+      ];
+      
+      // Find basic primitive data type elements that can be easily represented as columns
+      const primitiveTypes = ['string', 'code', 'id', 'boolean', 'decimal', 'integer', 'date', 'dateTime', 'instant', 'time', 'uri', 'url'];
+      
+      // Add primitive elements from the structure definition
+      if (elements.length > 0) {
+        console.log(`Adding columns from ${elements.length} structure definition elements`);
+        
+        elements.forEach((element: any) => {
+          // Skip the base resource element
+          if (element.path === profileData.resourceType) {
+            return;
+          }
+          
+          // Skip complex elements with arrays or nested structures for the basic view
+          if (element.max === '*' || element.path.split('.').length > 2) {
+            return;
+          }
+          
+          // Check if element has primitive types
+          const hasPrimitiveType = element.type && element.type.some((t: any) => primitiveTypes.includes(t.code));
+          
+          if (hasPrimitiveType) {
+            const pathParts = element.path.split('.');
+            if (pathParts.length >= 2) {
+              // Remove resource type from beginning
+              pathParts.shift();
+              const path = pathParts.join('.');
+              const name = pathParts.join('_').toLowerCase();
+              
+              mainColumns.push({ name, path });
+            }
+          }
+        });
+      }
+      
+      // Create some special columns based on common FHIR patterns
+      if (profileData.resourceType === 'Patient') {
+        mainColumns.push(
+          { name: "name_given", path: "name.first().given.join(' ')" },
+          { name: "name_family", path: "name.first().family" },
+          { name: "gender", path: "gender" },
+          { name: "birth_date", path: "birthDate" }
+        );
+      } else if (profileData.resourceType === 'Observation') {
+        mainColumns.push(
+          { name: "status", path: "status" },
+          { name: "category_coding_code", path: "category.first().coding.first().code" },
+          { name: "code_coding_code", path: "code.coding.first().code" },
+          { name: "code_coding_display", path: "code.coding.first().display" },
+          { name: "effective_date_time", path: "effective.ofType(dateTime)" },
+          { name: "value_quantity_value", path: "value.ofType(Quantity).value" },
+          { name: "value_quantity_unit", path: "value.ofType(Quantity).unit" },
+          { name: "subject_reference", path: "subject.reference" }
+        );
+      } else if (profileData.resourceType === 'Condition') {
+        mainColumns.push(
+          { name: "clinical_status", path: "clinicalStatus.coding.first().code" },
+          { name: "verification_status", path: "verificationStatus.coding.first().code" },
+          { name: "code_coding_code", path: "code.coding.first().code" },
+          { name: "code_coding_display", path: "code.coding.first().display" },
+          { name: "subject_reference", path: "subject.reference" },
+          { name: "onset_date_time", path: "onset.ofType(dateTime)" }
+        );
+      } else if (profileData.resourceType === 'Encounter') {
+        mainColumns.push(
+          { name: "status", path: "status" },
+          { name: "class_code", path: "class.code" },
+          { name: "type_coding_code", path: "type.first().coding.first().code" },
+          { name: "subject_reference", path: "subject.reference" },
+          { name: "period_start", path: "period.start" },
+          { name: "period_end", path: "period.end" }
+        );
+      } else if (profileData.resourceType === 'Medication' || profileData.resourceType === 'MedicationRequest') {
+        mainColumns.push(
+          { name: "status", path: "status" },
+          { name: "medication_coding_code", path: "medication.ofType(CodeableConcept).coding.first().code" },
+          { name: "medication_coding_display", path: "medication.ofType(CodeableConcept).coding.first().display" },
+          { name: "subject_reference", path: "subject.reference" }
+        );
+      }
+      
       viewDefinition = {
         resourceType: "http://hl7.org/fhir/uv/sql-on-fhir/StructureDefinition/ViewDefinition",
         id: `${profileData.name.toLowerCase().replace(/\s+/g, '-')}-view`,
-        name: profileData.name.toLowerCase().replace(/\s+/g, '_'),
+        name: profileData.name.toLowerCase().replace(/\s+/g, '_').substring(0, 50), // Limit length for SQL compatibility
         resource: profileData.resourceType,
         status: "active",
         select: [
           {
-            column: [
-              { name: "id", path: "getResourceKey()" },
-              { name: "resource_type", path: "resourceType" }
-            ]
+            column: mainColumns
           }
         ],
         where: [
@@ -347,15 +530,68 @@ RESPONSE FORMAT: Return ONLY valid, parseable JSON without any explanations, mar
         ]
       };
       
+      // Build SQL column selection string based on the enhanced mainColumns
+      const columnSelections = mainColumns.map(col => {
+        // For simple primitive paths
+        if (!col.path.includes('.') || col.path === 'getResourceKey()' || col.path === 'resourceType') {
+          return `${col.path === 'getResourceKey()' ? 'id' : col.path} as ${col.name}`;
+        }
+        
+        // For complex paths, use appropriate SQL syntax based on FHIRPath
+        // This is a simplified approach - actual implementation would need more sophisticated parsing
+        if (col.path.includes('.first()')) {
+          return `${col.path.replace(/\.first\(\)/g, '[0]')} as ${col.name}`;
+        }
+        
+        if (col.path.includes('.ofType(')) {
+          // Replace ofType with appropriate SQL casting
+          return `${col.path.replace(/\.ofType\([^)]+\)/g, '')} as ${col.name}`;
+        }
+        
+        if (col.path.includes('.join(')) {
+          // For join operations, just access the array (databases would handle differently)
+          return `${col.path.replace(/\.join\([^)]+\)/g, '')} as ${col.name}`;
+        }
+        
+        // Default approach for dot notation
+        return `${col.path} as ${col.name}`;
+      });
+      
+      // Generate the SQL query with all columns
+      const sqlColumns = columnSelections.join(',\n  ');
+      
+      const genericSqlQuery = `-- Fallback SQL query
+CREATE VIEW ${viewDefinition.name} AS
+SELECT 
+  ${sqlColumns}
+FROM ${profileData.resourceType}
+WHERE meta.profile LIKE '%${profileData.url}%'`;
+      
+      // Create platform-specific SQL with appropriate syntax
       return {
         viewDefinition,
-        sqlQuery: `-- Fallback SQL query\nCREATE VIEW ${viewDefinition.name} AS\nSELECT id, resourceType\nFROM ${profileData.resourceType}\nWHERE meta.profile LIKE '%${profileData.url}%'`,
+        sqlQuery: genericSqlQuery,
         platformSql: {
-          databricks: `-- Fallback SQL query\nCREATE VIEW ${viewDefinition.name} AS\nSELECT id, resourceType\nFROM ${profileData.resourceType}\nWHERE array_contains(meta.profile, '${profileData.url}')`,
-          bigquery: `-- Fallback SQL query\nCREATE VIEW ${viewDefinition.name} AS\nSELECT id, resourceType\nFROM ${profileData.resourceType}\nWHERE '${profileData.url}' IN UNNEST(meta.profile)`,
-          snowflake: `-- Fallback SQL query\nCREATE VIEW ${viewDefinition.name} AS\nSELECT id, resourceType\nFROM ${profileData.resourceType}\nWHERE array_contains(meta.profile, '${profileData.url}')`,
-          postgres: `-- Fallback SQL query\nCREATE VIEW ${viewDefinition.name} AS\nSELECT id, resourceType\nFROM ${profileData.resourceType}\nWHERE meta.profile @> ARRAY['${profileData.url}']`,
-          sqlserver: `-- Fallback SQL query\nCREATE VIEW ${viewDefinition.name} AS\nSELECT id, resourceType\nFROM ${profileData.resourceType}\nWHERE JSON_QUERY(meta, '$.profile') LIKE '%${profileData.url}%'`
+          databricks: genericSqlQuery.replace(
+            /WHERE meta\.profile LIKE '%(.+?)%'/,
+            "WHERE array_contains(meta.profile, '$1')"
+          ),
+          bigquery: genericSqlQuery.replace(
+            /WHERE meta\.profile LIKE '%(.+?)%'/,
+            "WHERE '$1' IN UNNEST(meta.profile)"
+          ),
+          snowflake: genericSqlQuery.replace(
+            /WHERE meta\.profile LIKE '%(.+?)%'/,
+            "WHERE array_contains(meta.profile, '$1')"
+          ),
+          postgres: genericSqlQuery.replace(
+            /WHERE meta\.profile LIKE '%(.+?)%'/,
+            "WHERE meta.profile @> ARRAY['$1']"
+          ),
+          sqlserver: genericSqlQuery.replace(
+            /WHERE meta\.profile LIKE '%(.+?)%'/,
+            "WHERE JSON_QUERY(meta, '$.profile') LIKE '%$1%'"
+          )
         }
       };
     } catch (error) {

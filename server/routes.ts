@@ -252,13 +252,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         transformationResult.viewDefinition.select = [];
       }
       
-      // Ensure where is properly formatted
+      // Ensure where is properly formatted and handle both path and fhirPath properties
       if (!transformationResult.viewDefinition.where) {
         // Create default where clause using the profile URL
         transformationResult.viewDefinition.where = [
-          { fhirPath: `meta.profile.contains('${profile.url}')` }
+          { path: `meta.profile.contains('${profile.url}')` }
         ];
         console.log("ViewDefinition missing 'where' property, creating default using profile URL");
+      } else {
+        // Ensure all where clauses use the path property (some might use fhirPath)
+        transformationResult.viewDefinition.where = transformationResult.viewDefinition.where.map((whereClause: any) => {
+          if (whereClause.fhirPath && !whereClause.path) {
+            return { path: whereClause.fhirPath };
+          }
+          return whereClause;
+        });
       }
       
       console.log("ViewDefinition validated, saving to database");
