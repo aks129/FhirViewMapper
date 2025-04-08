@@ -427,10 +427,16 @@ RESPONSE FORMAT: Return ONLY valid, parseable JSON without any explanations, mar
       const structureDefinition = profileData.structureDefinition || {};
       const elements = structureDefinition.snapshot?.element || structureDefinition.differential?.element || [];
       
-      // Build a better select array with important elements
+      // Build a comprehensive select array with standard FHIR elements
       const mainColumns = [
-        { name: "id", path: "getResourceKey()" },
-        { name: "resource_type", path: "resourceType" }
+        // Standard required columns for all FHIR resources
+        { name: "logical_id", path: "getResourceKey()" },      // Primary key/identifier 
+        { name: "resource_type", path: "resourceType" },       // Resource type 
+        { name: "meta_versionId", path: "meta.versionId" },    // Version tracking
+        { name: "meta_lastUpdated", path: "meta.lastUpdated" }, // Last modified timestamp
+        { name: "meta_profile", path: "meta.profile" },        // Profile URLs
+        { name: "text_status", path: "text.status" },         // Narrative text status
+        { name: "text_div", path: "text.div" }                // HTML narrative content
       ];
       
       // Find basic primitive data type elements that can be easily represented as columns
@@ -468,24 +474,106 @@ RESPONSE FORMAT: Return ONLY valid, parseable JSON without any explanations, mar
         });
       }
       
-      // Create some special columns based on common FHIR patterns
-      if (profileData.resourceType === 'Patient') {
+      // Create comprehensive columns based on common FHIR patterns and US Core mustSupport elements
+      if (profileData.resourceType === 'Patient' || profileData.resourceType === 'patient') {
+        // Standard Patient fields (based on US Core Patient Profile)
         mainColumns.push(
-          { name: "name_given", path: "name.first().given.join(' ')" },
-          { name: "name_family", path: "name.first().family" },
+          // Identifier (first entry)
+          { name: "identifier_use_first", path: "identifier.first().use" },
+          { name: "identifier_system_first", path: "identifier.first().system" },
+          { name: "identifier_value_first", path: "identifier.first().value" },
+          
+          // Name (first entry)
+          { name: "name_use_first", path: "name.first().use" },
+          { name: "name_family_first", path: "name.first().family" },
+          { name: "name_given_first", path: "name.first().given.first()" },
+          { name: "name_given_combined", path: "name.first().given.join(' ')" },
+          
+          // Telecom/Contact (first entry)
+          { name: "telecom_system_first", path: "telecom.first().system" },
+          { name: "telecom_value_first", path: "telecom.first().value" },
+          { name: "telecom_use_first", path: "telecom.first().use" },
+          
+          // Basic demographics
           { name: "gender", path: "gender" },
-          { name: "birth_date", path: "birthDate" }
+          { name: "birth_date", path: "birthDate" },
+          { name: "deceased_boolean", path: "deceasedBoolean" },
+          { name: "deceased_date_time", path: "deceasedDateTime" },
+          
+          // Address (first entry)
+          { name: "address_use_first", path: "address.first().use" },
+          { name: "address_line_first", path: "address.first().line.first()" },
+          { name: "address_city_first", path: "address.first().city" },
+          { name: "address_state_first", path: "address.first().state" },
+          { name: "address_postal_code_first", path: "address.first().postalCode" },
+          
+          // Communication/Language (first entry)
+          { name: "communication_language_code_first", path: "communication.first().language.coding.first().code" },
+          { name: "communication_language_text_first", path: "communication.first().language.text" },
+          
+          // US Core Extensions
+          { name: "race_omb_category_code", path: "extension.where(url='http://hl7.org/fhir/us/core/StructureDefinition/us-core-race').extension.where(url='ombCategory').value.code" },
+          { name: "race_text", path: "extension.where(url='http://hl7.org/fhir/us/core/StructureDefinition/us-core-race').extension.where(url='text').value" },
+          { name: "ethnicity_omb_category_code", path: "extension.where(url='http://hl7.org/fhir/us/core/StructureDefinition/us-core-ethnicity').extension.where(url='ombCategory').value.code" },
+          { name: "ethnicity_text", path: "extension.where(url='http://hl7.org/fhir/us/core/StructureDefinition/us-core-ethnicity').extension.where(url='text').value" },
+          { name: "birthsex_code", path: "extension.where(url='http://hl7.org/fhir/us/core/StructureDefinition/us-core-birthsex').value" }
         );
-      } else if (profileData.resourceType === 'Observation') {
+      } else if (profileData.resourceType === 'Observation' || profileData.resourceType === 'observation') {
+        // Standard observation fields (based on US Core Observation Profile)
         mainColumns.push(
+          // Status and metadata
           { name: "status", path: "status" },
-          { name: "category_coding_code", path: "category.first().coding.first().code" },
+          { name: "issued", path: "issued" },
+          
+          // Category (potentially multiple)
+          { name: "category_coding_code_first", path: "category.first().coding.first().code" },
+          { name: "category_coding_system_first", path: "category.first().coding.first().system" },
+          { name: "category_coding_display_first", path: "category.first().coding.first().display" },
+          
+          // Code (central to Observation)
           { name: "code_coding_code", path: "code.coding.first().code" },
+          { name: "code_coding_system", path: "code.coding.first().system" },
           { name: "code_coding_display", path: "code.coding.first().display" },
+          { name: "code_text", path: "code.text" },
+          
+          // Subject (typically Patient)
+          { name: "subject_reference", path: "subject.reference" },
+          { name: "subject_reference_id", path: "subject.getReferenceKey(Patient)" },
+          
+          // Encounter context
+          { name: "encounter_reference", path: "encounter.reference" },
+          
+          // Effective time (choice type)
           { name: "effective_date_time", path: "effective.ofType(dateTime)" },
+          { name: "effective_period_start", path: "effective.ofType(Period).start" },
+          { name: "effective_period_end", path: "effective.ofType(Period).end" },
+          
+          // Value (choice type)
           { name: "value_quantity_value", path: "value.ofType(Quantity).value" },
           { name: "value_quantity_unit", path: "value.ofType(Quantity).unit" },
-          { name: "subject_reference", path: "subject.reference" }
+          { name: "value_quantity_system", path: "value.ofType(Quantity).system" },
+          { name: "value_quantity_code", path: "value.ofType(Quantity).code" },
+          { name: "value_codeable_concept_code", path: "value.ofType(CodeableConcept).coding.first().code" },
+          { name: "value_codeable_concept_display", path: "value.ofType(CodeableConcept).coding.first().display" },
+          { name: "value_string", path: "value.ofType(string)" },
+          { name: "value_boolean", path: "value.ofType(boolean)" },
+          { name: "value_integer", path: "value.ofType(integer)" },
+          { name: "value_range_low", path: "value.ofType(Range).low.value" },
+          { name: "value_range_high", path: "value.ofType(Range).high.value" },
+          
+          // DataAbsentReason
+          { name: "dataAbsentReason_coding_code", path: "dataAbsentReason.coding.first().code" },
+          { name: "dataAbsentReason_coding_display", path: "dataAbsentReason.coding.first().display" },
+          
+          // Interpretation
+          { name: "interpretation_coding_code", path: "interpretation.first().coding.first().code" },
+          { name: "interpretation_coding_display", path: "interpretation.first().coding.first().display" },
+          
+          // Component (for multi-component observations like BP)
+          { name: "component_code_first", path: "component.first().code.coding.first().code" },
+          { name: "component_code_display_first", path: "component.first().code.coding.first().display" },
+          { name: "component_value_quantity_first", path: "component.first().value.ofType(Quantity).value" },
+          { name: "component_value_quantity_unit_first", path: "component.first().value.ofType(Quantity).unit" }
         );
       } else if (profileData.resourceType === 'Condition') {
         mainColumns.push(
@@ -515,16 +603,12 @@ RESPONSE FORMAT: Return ONLY valid, parseable JSON without any explanations, mar
       }
       
       viewDefinition = {
-        resourceType: "http://hl7.org/fhir/uv/sql-on-fhir/StructureDefinition/ViewDefinition",
+        resourceType: "ViewDefinition", // Correct resourceType value
         id: `${profileData.name.toLowerCase().replace(/\s+/g, '-')}-view`,
         name: profileData.name.toLowerCase().replace(/\s+/g, '_').substring(0, 50), // Limit length for SQL compatibility
-        resource: profileData.resourceType,
+        resource: profileData.resourceType.charAt(0).toUpperCase() + profileData.resourceType.slice(1), // Ensure proper capitalization
         status: "active",
-        select: [
-          {
-            column: mainColumns
-          }
-        ],
+        select: mainColumns, // Flatten the structure - direct array of columns
         where: [
           { path: `meta.profile.contains('${profileData.url}')` }
         ]
