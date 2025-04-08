@@ -230,7 +230,7 @@ function initializeDatabase() {
       try {
         // Check if table already has data
         const countStmt = db.prepare(`SELECT COUNT(*) as count FROM ${resourceType}`);
-        const countRow = countStmt.get();
+        const countRow = countStmt.get() as { count: number } | undefined;
         const count = countRow ? Number(countRow.count) : 0;
         
         if (count === 0) {
@@ -261,7 +261,7 @@ function initializeDatabase() {
     // Test if tables were populated correctly
     try {
       const countStmt = db.prepare('SELECT COUNT(*) as count FROM Patient');
-      const countRow = countStmt.get();
+      const countRow = countStmt.get() as { count: number } | undefined;
       const count = countRow ? Number(countRow.count) : 0;
       
       console.log(`Initialized SQLite with ${count} sample Patient records`);
@@ -625,33 +625,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
-        // Create the view with adjusted SQL for DuckDB JSON paths
-        let adjustedSql = sql;
+        // Create the view with adjusted SQL for SQLite JSON paths
+        let adjustedSql = sql.replace(/CREATE VIEW/i, "CREATE VIEW IF NOT EXISTS");
         
-        // Replace common FHIRPath expressions with DuckDB JSON extraction syntax
+        // Fix table names to match our SQLite tables (case sensitive)
         adjustedSql = adjustedSql
-          .replace(/meta\.profile/g, "json_extract(resource, '$.meta.profile')")
-          .replace(/resource\.([\w]+)/g, "json_extract(resource, '$.$1')")
-          .replace(/\.first\(\)/g, "[0]")
-          .replace(/\.coding\.first\(\)\.code/g, ".coding[0].code")
-          .replace(/\.coding\.first\(\)\.system/g, ".coding[0].system")
-          .replace(/\.coding\.first\(\)\.display/g, ".coding[0].display")
-          .replace(/\.identifier\.first\(\)\.system/g, ".identifier[0].system")
-          .replace(/\.identifier\.first\(\)\.value/g, ".identifier[0].value")
-          .replace(/\.name\.first\(\)\.family/g, ".name[0].family")
-          .replace(/\.name\.first\(\)\.given/g, ".name[0].given")
-          .replace(/\.telecom\.first\(\)\.system/g, ".telecom[0].system")
-          .replace(/\.telecom\.first\(\)\.value/g, ".telecom[0].value")
-          .replace(/\.address\.first\(\)\.city/g, ".address[0].city")
-          .replace(/\.address\.first\(\)\.line/g, ".address[0].line")
-          .replace(/\.extension\.where\(url='([^']+)'\)\.value/g, (match, url) => {
-            return `.extension[json_extract(value, '$.url') = '${url}'].value`;
+          .replace(/FROM\s+Patient/i, "FROM Patient")
+          .replace(/FROM\s+Observation/i, "FROM Observation")
+          .replace(/FROM\s+(\w+)/g, (match, tableName) => {
+            // Convert PascalCase FHIR resource type to lowercase for SQLite table name
+            return `FROM ${tableName.toLowerCase()}`;
           });
         
-        // Replace LIKE/contains with proper JSON array containment check
+        // Replace common FHIRPath expressions with SQLite JSON extraction syntax
+        adjustedSql = adjustedSql
+          // First, replace all dots with underscores in column names
+          .replace(/(\w+)\.(\w+)/g, (match, p1, p2) => {
+            // Skip if it's in json_extract or part of the table name
+            if (match.includes('json_extract') || p1 === 'resource' || p1 === 'Patient' || p1 === 'Observation') {
+              return match;
+            }
+            return `${p1}_${p2}`;
+          })
+          // Then handle specific JSON paths with SQLite syntax
+          .replace(/meta\.profile/g, "json_extract(resource, '$.meta.profile')")
+          .replace(/resource\.(\w+)/g, "json_extract(resource, '$.$1')")
+          .replace(/\[(\d+)\]/g, (match, index) => `[${index}]`) // Keep array indexing
+          .replace(/\.where\(url='([^']+)'\)/g, (match, url) => {
+            return `_by_url('${url}')`;
+          });
+        
+        // Replace LIKE/contains with proper SQLite JSON check
         adjustedSql = adjustedSql.replace(
           /WHERE\s+meta\.profile\s+LIKE\s+'%([^']+)%'/i,
-          `WHERE json_extract(resource, '$.meta.profile') ? '["$1"]'`
+          `WHERE json_extract(resource, '$.meta.profile') LIKE '%$1%'`
         );
 
         console.log("Executing adjusted SQL query:", adjustedSql);
