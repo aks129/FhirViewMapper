@@ -6,9 +6,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { ArrowLeft, RefreshCw, CheckCircle, TableProperties } from 'lucide-react';
+import { ArrowLeft, RefreshCw, CheckCircle, TableProperties, Database } from 'lucide-react';
 import { JsonViewer } from '@/components/ui/json-viewer';
 import { SqlExporter } from '@/components/ui/sql-exporter';
+import { SqlExecutor } from '@/components/ui/sql-executor';
 import { TransformationResponse } from '@/lib/types';
 
 interface ViewResultsProps {
@@ -154,11 +155,22 @@ const ViewResults: React.FC<ViewResultsProps> = ({
             </Tabs>
           </div>
           
-          <SqlExporter 
-            standardSql={transformationResult.sqlQuery}
-            platformSql={transformationResult.platformSql}
-            className="mb-6"
-          />
+          <div className="mb-6">
+            <SqlExporter 
+              standardSql={transformationResult.sqlQuery}
+              platformSql={transformationResult.platformSql}
+              className="mb-8"
+            />
+            
+            <div className="border-t border-gray-200 dark:border-gray-800 pt-8 mt-8">
+              <SqlExecutor
+                viewDefinition={transformationResult.viewDefinition}
+                sqlQuery={transformationResult.sqlQuery}
+                platformSql={transformationResult.platformSql}
+                resourceType={transformationResult.viewDefinition?.resource || transformationResult.viewDefinition?.resourceModel?.type}
+              />
+            </div>
+          </div>
           
           <div className="flex justify-between">
             <Button 

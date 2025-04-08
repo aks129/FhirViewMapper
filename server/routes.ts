@@ -3,6 +3,278 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { transformProfileToViewDefinition } from "./anthropic";
 import { z } from "zod";
+import Database from 'better-sqlite3';
+
+// Initialize SQLite database
+const db = new Database(':memory:');
+
+// Sample FHIR data for testing view definitions
+const sampleData = {
+  Patient: [
+    {
+      resourceType: "Patient",
+      id: "example",
+      meta: {
+        profile: ["http://hl7.org/fhir/us/core/StructureDefinition/us-core-patient"]
+      },
+      text: {
+        status: "generated",
+        div: "<div xmlns=\"http://www.w3.org/1999/xhtml\">John Smith</div>"
+      },
+      identifier: [
+        {
+          system: "http://hospital.example.org",
+          value: "12345",
+          use: "official" 
+        }
+      ],
+      name: [
+        {
+          family: "Smith",
+          given: ["John", "Jacob"],
+          use: "official"
+        }
+      ],
+      telecom: [
+        {
+          system: "phone",
+          value: "555-555-5555",
+          use: "home"
+        }
+      ],
+      gender: "male",
+      birthDate: "1970-01-01",
+      address: [
+        {
+          use: "home",
+          line: ["123 Main St"],
+          city: "Anytown",
+          state: "CA",
+          postalCode: "12345"
+        }
+      ],
+      extension: [
+        {
+          url: "http://hl7.org/fhir/us/core/StructureDefinition/us-core-race",
+          extension: [
+            {
+              url: "ombCategory",
+              valueCoding: {
+                system: "urn:oid:2.16.840.1.113883.6.238",
+                code: "2106-3",
+                display: "White"
+              }
+            },
+            {
+              url: "text",
+              valueString: "White"
+            }
+          ]
+        },
+        {
+          url: "http://hl7.org/fhir/us/core/StructureDefinition/us-core-ethnicity",
+          extension: [
+            {
+              url: "ombCategory",
+              valueCoding: {
+                system: "urn:oid:2.16.840.1.113883.6.238",
+                code: "2186-5",
+                display: "Not Hispanic or Latino"
+              }
+            },
+            {
+              url: "text",
+              valueString: "Not Hispanic or Latino"
+            }
+          ]
+        },
+        {
+          url: "http://hl7.org/fhir/us/core/StructureDefinition/us-core-birthsex",
+          valueCode: "M"
+        }
+      ]
+    },
+    {
+      resourceType: "Patient",
+      id: "example2",
+      meta: {
+        profile: ["http://hl7.org/fhir/us/core/StructureDefinition/us-core-patient"]
+      },
+      text: {
+        status: "generated",
+        div: "<div xmlns=\"http://www.w3.org/1999/xhtml\">Jane Doe</div>"
+      },
+      identifier: [
+        {
+          system: "http://hospital.example.org",
+          value: "67890",
+          use: "official"
+        }
+      ],
+      name: [
+        {
+          family: "Doe",
+          given: ["Jane"],
+          use: "official"
+        }
+      ],
+      telecom: [
+        {
+          system: "phone",
+          value: "555-123-4567",
+          use: "mobile"
+        }
+      ],
+      gender: "female",
+      birthDate: "1985-05-12",
+      address: [
+        {
+          use: "home",
+          line: ["456 Oak Ave"],
+          city: "Somewhere",
+          state: "NY",
+          postalCode: "10001"
+        }
+      ]
+    }
+  ],
+  Observation: [
+    {
+      resourceType: "Observation",
+      id: "bp-example",
+      meta: {
+        profile: ["http://hl7.org/fhir/us/core/StructureDefinition/us-core-blood-pressure"]
+      },
+      status: "final",
+      category: [
+        {
+          coding: [
+            {
+              system: "http://terminology.hl7.org/CodeSystem/observation-category",
+              code: "vital-signs",
+              display: "Vital Signs"
+            }
+          ]
+        }
+      ],
+      code: {
+        coding: [
+          {
+            system: "http://loinc.org",
+            code: "85354-9",
+            display: "Blood pressure panel"
+          }
+        ],
+        text: "Blood pressure systolic & diastolic"
+      },
+      subject: {
+        reference: "Patient/example"
+      },
+      effectiveDateTime: "2023-01-15T10:30:00Z",
+      component: [
+        {
+          code: {
+            coding: [
+              {
+                system: "http://loinc.org",
+                code: "8480-6",
+                display: "Systolic blood pressure"
+              }
+            ],
+            text: "Systolic blood pressure"
+          },
+          valueQuantity: {
+            value: 120,
+            unit: "mmHg",
+            system: "http://unitsofmeasure.org",
+            code: "mm[Hg]"
+          }
+        },
+        {
+          code: {
+            coding: [
+              {
+                system: "http://loinc.org",
+                code: "8462-4",
+                display: "Diastolic blood pressure"
+              }
+            ],
+            text: "Diastolic blood pressure"
+          },
+          valueQuantity: {
+            value: 80,
+            unit: "mmHg",
+            system: "http://unitsofmeasure.org",
+            code: "mm[Hg]"
+          }
+        }
+      ]
+    }
+  ]
+};
+
+// Initialize SQLite with sample data
+function initializeDatabase() {
+  try {
+    // Enable JSON support
+    db.pragma('journal_mode = WAL');
+    
+    // Create tables for each resource type
+    Object.keys(sampleData).forEach(resourceType => {
+      // Create table
+      db.exec(`CREATE TABLE IF NOT EXISTS ${resourceType} (
+        id TEXT,
+        resource TEXT
+      )`);
+      
+      try {
+        // Check if table already has data
+        const countStmt = db.prepare(`SELECT COUNT(*) as count FROM ${resourceType}`);
+        const countRow = countStmt.get();
+        const count = countRow ? Number(countRow.count) : 0;
+        
+        if (count === 0) {
+          // Insert sample data using prepared statement
+          const insertStmt = db.prepare(
+            `INSERT INTO ${resourceType} (id, resource) VALUES (?, ?)`
+          );
+          
+          // Start transaction for bulk insert
+          const insertMany = db.transaction((resources: any[]) => {
+            for (const resource of resources) {
+              insertStmt.run(resource.id, JSON.stringify(resource));
+            }
+          });
+          
+          // Insert data for this resource type
+          try {
+            insertMany(sampleData[resourceType as keyof typeof sampleData]);
+          } catch (insertError) {
+            console.warn(`Error inserting ${resourceType} records:`, insertError);
+          }
+        }
+      } catch (tableError) {
+        console.warn(`Error checking/inserting data for ${resourceType}:`, tableError);
+      }
+    });
+    
+    // Test if tables were populated correctly
+    try {
+      const countStmt = db.prepare('SELECT COUNT(*) as count FROM Patient');
+      const countRow = countStmt.get();
+      const count = countRow ? Number(countRow.count) : 0;
+      
+      console.log(`Initialized SQLite with ${count} sample Patient records`);
+    } catch (testError) {
+      console.error('Error testing SQLite initialization:', testError);
+    }
+  } catch (error) {
+    console.error('Error initializing SQLite database:', error);
+  }
+}
+
+// Initialize SQLite with sample data
+initializeDatabase();
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Get all implementation guides
@@ -320,6 +592,118 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching transformation:", error);
       res.status(500).json({ message: "Failed to fetch transformation" });
+    }
+  });
+
+  // Execute SQL query from view definition
+  app.post("/api/execute-sql", async (req, res) => {
+    try {
+      const { sql, resourceType } = req.body;
+      
+      if (!sql || typeof sql !== 'string') {
+        return res.status(400).json({ message: "SQL query is required" });
+      }
+
+      // Validate that requested resource type exists in our sample data
+      if (resourceType && !sampleData[resourceType as keyof typeof sampleData]) {
+        return res.status(400).json({ 
+          message: `Resource type '${resourceType}' not found in sample data`, 
+          availableTypes: Object.keys(sampleData)
+        });
+      }
+
+      // Execute the view creation SQL
+      try {
+        // First drop the view if it exists
+        const viewNameMatch = sql.match(/CREATE\s+VIEW\s+([a-zA-Z0-9_]+)/i);
+        if (viewNameMatch && viewNameMatch[1]) {
+          const viewName = viewNameMatch[1];
+          try {
+            db.exec(`DROP VIEW IF EXISTS ${viewName}`);
+          } catch (dropError) {
+            console.warn(`Error dropping view ${viewName}:`, dropError);
+          }
+        }
+
+        // Create the view with adjusted SQL for DuckDB JSON paths
+        let adjustedSql = sql;
+        
+        // Replace common FHIRPath expressions with DuckDB JSON extraction syntax
+        adjustedSql = adjustedSql
+          .replace(/meta\.profile/g, "json_extract(resource, '$.meta.profile')")
+          .replace(/resource\.([\w]+)/g, "json_extract(resource, '$.$1')")
+          .replace(/\.first\(\)/g, "[0]")
+          .replace(/\.coding\.first\(\)\.code/g, ".coding[0].code")
+          .replace(/\.coding\.first\(\)\.system/g, ".coding[0].system")
+          .replace(/\.coding\.first\(\)\.display/g, ".coding[0].display")
+          .replace(/\.identifier\.first\(\)\.system/g, ".identifier[0].system")
+          .replace(/\.identifier\.first\(\)\.value/g, ".identifier[0].value")
+          .replace(/\.name\.first\(\)\.family/g, ".name[0].family")
+          .replace(/\.name\.first\(\)\.given/g, ".name[0].given")
+          .replace(/\.telecom\.first\(\)\.system/g, ".telecom[0].system")
+          .replace(/\.telecom\.first\(\)\.value/g, ".telecom[0].value")
+          .replace(/\.address\.first\(\)\.city/g, ".address[0].city")
+          .replace(/\.address\.first\(\)\.line/g, ".address[0].line")
+          .replace(/\.extension\.where\(url='([^']+)'\)\.value/g, (match, url) => {
+            return `.extension[json_extract(value, '$.url') = '${url}'].value`;
+          });
+        
+        // Replace LIKE/contains with proper JSON array containment check
+        adjustedSql = adjustedSql.replace(
+          /WHERE\s+meta\.profile\s+LIKE\s+'%([^']+)%'/i,
+          `WHERE json_extract(resource, '$.meta.profile') ? '["$1"]'`
+        );
+
+        console.log("Executing adjusted SQL query:", adjustedSql);
+        db.exec(adjustedSql);
+
+        // Get the view name from the SQL
+        const match = adjustedSql.match(/CREATE\s+VIEW\s+([a-zA-Z0-9_]+)/i);
+        if (!match || !match[1]) {
+          return res.status(400).json({ message: "Could not determine view name from SQL" });
+        }
+
+        const viewName = match[1];
+        
+        // Query the view
+        console.log(`Querying view: ${viewName}`);
+        let queryResult;
+        try {
+          queryResult = db.prepare(`SELECT * FROM ${viewName}`).all();
+        } catch (queryError) {
+          console.error(`Error querying view ${viewName}:`, queryError);
+          return res.status(400).json({ 
+            message: `Error querying view ${viewName}`, 
+            error: queryError instanceof Error ? queryError.message : String(queryError)
+          });
+        }
+        
+        // Ensure results is an array
+        const results = Array.isArray(queryResult) ? queryResult : [];
+        const resourceTypeToUse = resourceType ? (resourceType as keyof typeof sampleData) : 'Patient';
+        
+        res.json({
+          success: true,
+          viewName,
+          sampleData: sampleData[resourceTypeToUse],
+          results,
+          executedSql: adjustedSql,
+          message: `SQL view "${viewName}" created and executed successfully.`,
+          rowCount: results.length
+        });
+      } catch (sqlError: any) {
+        console.error("SQL execution error:", sqlError);
+        return res.status(400).json({ 
+          message: "SQL execution error", 
+          error: sqlError.message || String(sqlError)
+        });
+      }
+    } catch (error: any) {
+      console.error("Error executing SQL query:", error);
+      res.status(500).json({ 
+        message: "Failed to execute SQL query", 
+        error: error.message || String(error)
+      });
     }
   });
 
