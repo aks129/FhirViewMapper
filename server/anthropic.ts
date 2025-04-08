@@ -83,61 +83,42 @@ CORRECT structure for ViewDefinition select:
 
 This structure allows for both direct column selection and nested iterations over collections.
 
+Here is an example of a proper ViewDefinition for Observation resources (Blood Pressure):
+
+Example ViewDefinition structure:
+- resourceType: http://hl7.org/fhir/uv/sql-on-fhir/StructureDefinition/ViewDefinition
+- constants with code values for filtering
+- structured select with column definitions
+- nested forEach elements to handle collections
+- where clauses to filter by profile
+
 INSTRUCTIONS:
-1. Generate a FHIR ViewDefinition resource that follows the latest SQL on FHIR specification
+1. Generate a FHIR ViewDefinition resource that follows the latest SQL on FHIR specification, using the above example as a model
 2. The ViewDefinition must include these required elements:
-   - resourceType: "ViewDefinition"
-   - id: A unique identifier (kebab-case format recommended)
-   - status: "active" or appropriate status
-   - name: A name for the view (snake_case format recommended for SQL compatibility)
-   - resource: The base FHIR resource type this view is based on (e.g., "Patient", "Observation")
-   - select: Array with column definitions as described above
-   - where: FHIRPath expressions to filter the resources
+   - resourceType: "http://hl7.org/fhir/uv/sql-on-fhir/StructureDefinition/ViewDefinition"
+   - id: A unique identifier related to the profile name (kebab-case format)
+   - status: "active" or "draft"
+   - name: A descriptive name for the view (snake_case format for SQL compatibility)
+   - resource: The base FHIR resource type this view is based on
+   - constant: Define any LOINC or other codes needed for filtering
+   - select: Structured array with column definitions and forEach sections for nested elements
+   - where: FHIRPath expressions using the correct syntax to filter resources
 
 3. Also generate the actual SQL query that would create this view in a SQL database
    - The SQL query should use proper FHIRPath traversal syntax
    - Make sure the SQL syntax is correct and would work in real databases
 
-Your response MUST be in pure, parseable JSON format ONLY. No prose, explanations, or markdown code blocks. Return a single valid JSON object with the following properties:
+Your response MUST be in pure, parseable JSON format ONLY. No prose, explanations, or markdown code blocks. Return a single valid JSON object with these properties:
 
-{
-  "viewDefinition": {
-    "resourceType": "ViewDefinition",
-    "id": "example-view-id",
-    "url": "http://example.org/fhir/ViewDefinition/example-view-id",
-    "version": "1.0.0",
-    "name": "example_view_name",
-    "resource": "Patient",
-    "status": "active",
-    "select": [
-      {
-        "column": [
-          {"name": "patient_id", "path": "getResourceKey()"},
-          {"name": "gender", "path": "gender"},
-          {"name": "birth_date", "path": "birthDate"}
-        ]
-      },
-      {
-        "forEach": "name.where(use = 'official').first()",
-        "column": [
-          {"path": "given.join(' ')", "name": "given_name"},
-          {"path": "family", "name": "family_name"}
-        ]
-      }
-    ],
-    "where": [
-      {"fhirPath": "meta.profile.contains('http://example.org/fhir/Profile/example')"}
-    ]
-  },
-  "sqlQuery": "CREATE VIEW example_view AS SELECT id, meta.profile FROM Patient WHERE meta.profile LIKE '%http://example.org/fhir/Profile/example%'",
-  "platformSql": {
-    "databricks": "CREATE VIEW example_view AS SELECT id, meta.profile FROM Patient WHERE array_contains(meta.profile, 'http://example.org/fhir/Profile/example')",
-    "bigquery": "CREATE VIEW example_view AS SELECT id, meta.profile FROM Patient WHERE 'http://example.org/fhir/Profile/example' IN UNNEST(meta.profile)",
-    "snowflake": "CREATE VIEW example_view AS SELECT id, meta.profile FROM Patient WHERE array_contains(meta.profile, 'http://example.org/fhir/Profile/example')",
-    "postgres": "CREATE VIEW example_view AS SELECT id, meta.profile FROM Patient WHERE meta.profile @> ARRAY['http://example.org/fhir/Profile/example']",
-    "sqlserver": "CREATE VIEW example_view AS SELECT id, meta.profile FROM Patient WHERE JSON_QUERY(meta, '$.profile') LIKE '%http://example.org/fhir/Profile/example%'"
-  }
-}
+1. "viewDefinition" - A properly structured ViewDefinition resource including:
+   - The correct resourceType URI
+   - Appropriate id and name fields
+   - Required select and where fields
+   - Any needed constant values
+
+2. "sqlQuery" - A string with the SQL query to create the view 
+
+3. "platformSql" - An object with platform-specific SQL for different database systems
 
 Notes:
 - Make the view name match the profile name (with appropriate formatting)
@@ -229,7 +210,8 @@ RESPONSE FORMAT: Return ONLY valid, parseable JSON without any explanations, mar
             sqlserver: result.sqlQuery
           }
         };
-      } catch (initialParseError) {
+      } catch (error) {
+        const initialParseError = error as Error;
         console.log("Initial JSON parse failed, trying alternate methods:", initialParseError.message);
       }
       
@@ -283,7 +265,8 @@ RESPONSE FORMAT: Return ONLY valid, parseable JSON without any explanations, mar
             sqlserver: result.sqlQuery
           }
         };
-      } catch (fixedJsonError) {
+      } catch (error) {
+        const fixedJsonError = error as Error;
         console.log("Failed to parse fixed JSON:", fixedJsonError.message);
       }
       
@@ -313,7 +296,8 @@ RESPONSE FORMAT: Return ONLY valid, parseable JSON without any explanations, mar
           
           viewDefinition = JSON.parse(viewDefString);
           console.log("Successfully extracted viewDefinition");
-        } catch (viewDefError) {
+        } catch (error) {
+          const viewDefError = error as Error;
           console.log("Failed to parse extracted viewDefinition:", viewDefError.message);
         }
       }
@@ -345,7 +329,7 @@ RESPONSE FORMAT: Return ONLY valid, parseable JSON without any explanations, mar
       // Last resort: Create a minimal viewDefinition from the profile data
       console.log("Creating minimal viewDefinition from profile data");
       viewDefinition = {
-        resourceType: "ViewDefinition",
+        resourceType: "http://hl7.org/fhir/uv/sql-on-fhir/StructureDefinition/ViewDefinition",
         id: `${profileData.name.toLowerCase().replace(/\s+/g, '-')}-view`,
         name: profileData.name.toLowerCase().replace(/\s+/g, '_'),
         resource: profileData.resourceType,
@@ -353,13 +337,13 @@ RESPONSE FORMAT: Return ONLY valid, parseable JSON without any explanations, mar
         select: [
           {
             column: [
-              { name: "id", path: "id" },
+              { name: "id", path: "getResourceKey()" },
               { name: "resource_type", path: "resourceType" }
             ]
           }
         ],
         where: [
-          { fhirPath: `meta.profile.contains('${profileData.url}')` }
+          { path: `meta.profile.contains('${profileData.url}')` }
         ]
       };
       
@@ -374,7 +358,8 @@ RESPONSE FORMAT: Return ONLY valid, parseable JSON without any explanations, mar
           sqlserver: `-- Fallback SQL query\nCREATE VIEW ${viewDefinition.name} AS\nSELECT id, resourceType\nFROM ${profileData.resourceType}\nWHERE JSON_QUERY(meta, '$.profile') LIKE '%${profileData.url}%'`
         }
       };
-    } catch (parseError) {
+    } catch (error) {
+      const parseError = error as Error;
       console.error("Failed in JSON parsing and recovery:", parseError);
       throw new Error(`Failed to process Claude's response: ${parseError.message}`);
     }
