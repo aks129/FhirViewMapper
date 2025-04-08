@@ -156,24 +156,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { schema, includeExtensions, normalizeTables, apiKey } = validationResult.data;
       
-      // Use the API key from the environment or from the request
-      let anthropicApiKey = originalApiKey;
-      
-      // If an API key was provided in the request and it's not empty, use it
-      if (apiKey && apiKey.trim() !== "") {
-        console.log("Using API key provided in the request");
-        anthropicApiKey = apiKey.trim();
-      } else {
-        console.log("Using API key from environment variables");
+      // We'll use the environment API key by default and not override it with user input
+      // to prevent issues with invalid API keys
+      if (apiKey) {
+        console.log("API key provided in request, but using environment API key for security");
       }
       
-      // Ensure there's an API key available
-      if (!anthropicApiKey) {
-        return res.status(400).json({ message: "API key is required for transformation" });
+      // Check if the environment API key is available
+      if (!originalApiKey || originalApiKey.trim() === "") {
+        return res.status(500).json({ message: "API key not configured for transformation service" });
       }
-      
-      // Temporarily set the API key for this request
-      process.env.ANTHROPIC_API_KEY = anthropicApiKey;
 
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
