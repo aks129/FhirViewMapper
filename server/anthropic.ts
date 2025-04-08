@@ -209,55 +209,174 @@ RESPONSE FORMAT: Return ONLY valid, parseable JSON without any explanations, mar
     console.log("Extracted JSON content, attempting to parse...");
     
     try {
-      // Try to parse the JSON response
-      const result = JSON.parse(jsonContent);
-      
-      // Validate that result has the expected structure
-      if (!result.viewDefinition || !result.sqlQuery) {
-        throw new Error("Claude's response is missing required fields (viewDefinition or sqlQuery)");
+      // First attempt: Try to parse the complete JSON response
+      try {
+        const result = JSON.parse(jsonContent);
+        
+        // Validate that result has the expected structure
+        if (!result.viewDefinition || !result.sqlQuery) {
+          throw new Error("Claude's response is missing required fields (viewDefinition or sqlQuery)");
+        }
+        
+        return {
+          viewDefinition: result.viewDefinition,
+          sqlQuery: result.sqlQuery,
+          platformSql: result.platformSql || {
+            databricks: result.sqlQuery,
+            bigquery: result.sqlQuery,
+            snowflake: result.sqlQuery,
+            postgres: result.sqlQuery,
+            sqlserver: result.sqlQuery
+          }
+        };
+      } catch (initialParseError) {
+        console.log("Initial JSON parse failed, trying alternate methods:", initialParseError.message);
       }
       
+      // Second attempt: Handle potential JSON fixups
+      console.log("Attempting to fix and parse incomplete JSON...");
+      let fixedJson = jsonContent;
+
+      // Check for incomplete JSON by adding missing closing braces/brackets
+      const openBraces = (fixedJson.match(/\{/g) || []).length;
+      const closeBraces = (fixedJson.match(/\}/g) || []).length;
+      if (openBraces > closeBraces) {
+        console.log(`Fixing unbalanced braces: ${openBraces} open, ${closeBraces} close`);
+        for (let i = 0; i < openBraces - closeBraces; i++) {
+          fixedJson += '}';
+        }
+      }
+      
+      const openBrackets = (fixedJson.match(/\[/g) || []).length;
+      const closeBrackets = (fixedJson.match(/\]/g) || []).length;
+      if (openBrackets > closeBrackets) {
+        console.log(`Fixing unbalanced brackets: ${openBrackets} open, ${closeBrackets} close`);
+        for (let i = 0; i < openBrackets - closeBrackets; i++) {
+          fixedJson += ']';
+        }
+      }
+      
+      // Check for trailing commas at the end of objects/arrays
+      fixedJson = fixedJson.replace(/,\s*\}/g, '}').replace(/,\s*\]/g, ']');
+      
+      // Check for missing quotes around property names
+      fixedJson = fixedJson.replace(/(\{|\,)\s*([a-zA-Z0-9_]+)\s*\:/g, '$1"$2":');
+      
+      // Try with the fixed JSON
+      try {
+        const result = JSON.parse(fixedJson);
+        
+        // Validate that result has the expected structure
+        if (!result.viewDefinition || !result.sqlQuery) {
+          throw new Error("Fixed JSON is missing required fields");
+        }
+        
+        console.log("Successfully parsed JSON after fixing");
+        return {
+          viewDefinition: result.viewDefinition,
+          sqlQuery: result.sqlQuery,
+          platformSql: result.platformSql || {
+            databricks: result.sqlQuery,
+            bigquery: result.sqlQuery,
+            snowflake: result.sqlQuery,
+            postgres: result.sqlQuery,
+            sqlserver: result.sqlQuery
+          }
+        };
+      } catch (fixedJsonError) {
+        console.log("Failed to parse fixed JSON:", fixedJsonError.message);
+      }
+      
+      // Third attempt: Extract and repair viewDefinition separately
+      console.log("Attempting to extract viewDefinition separately...");
+      
+      // Try to extract just the viewDefinition part
+      const viewDefMatch = jsonContent.match(/"viewDefinition"\s*:\s*(\{[\s\S]*?(?:\}\s*,|\}\s*\}))/);
+      let viewDefinition;
+      
+      if (viewDefMatch && viewDefMatch[1]) {
+        try {
+          // Clean up the extracted viewDefinition string
+          let viewDefString = viewDefMatch[1];
+          
+          // Remove trailing comma if present
+          viewDefString = viewDefString.replace(/,\s*$/, '');
+          
+          // Make sure it's properly closed
+          const openBraces = (viewDefString.match(/\{/g) || []).length;
+          const closeBraces = (viewDefString.match(/\}/g) || []).length;
+          if (openBraces > closeBraces) {
+            for (let i = 0; i < openBraces - closeBraces; i++) {
+              viewDefString += '}';
+            }
+          }
+          
+          viewDefinition = JSON.parse(viewDefString);
+          console.log("Successfully extracted viewDefinition");
+        } catch (viewDefError) {
+          console.log("Failed to parse extracted viewDefinition:", viewDefError.message);
+        }
+      }
+      
+      // Try to extract just the SQL query
+      const sqlQueryMatch = jsonContent.match(/"sqlQuery"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+      let sqlQuery = "-- SQL query could not be extracted";
+      
+      if (sqlQueryMatch && sqlQueryMatch[1]) {
+        sqlQuery = sqlQueryMatch[1].replace(/\\"/g, '"');
+        console.log("Successfully extracted sqlQuery");
+      }
+      
+      // If we have at least a viewDefinition, return it
+      if (viewDefinition) {
+        return {
+          viewDefinition,
+          sqlQuery,
+          platformSql: {
+            databricks: sqlQuery,
+            bigquery: sqlQuery,
+            snowflake: sqlQuery,
+            postgres: sqlQuery,
+            sqlserver: sqlQuery
+          }
+        };
+      }
+      
+      // Last resort: Create a minimal viewDefinition from the profile data
+      console.log("Creating minimal viewDefinition from profile data");
+      viewDefinition = {
+        resourceType: "ViewDefinition",
+        id: `${profileData.name.toLowerCase().replace(/\s+/g, '-')}-view`,
+        name: profileData.name.toLowerCase().replace(/\s+/g, '_'),
+        resource: profileData.resourceType,
+        status: "active",
+        select: [
+          {
+            column: [
+              { name: "id", path: "id" },
+              { name: "resource_type", path: "resourceType" }
+            ]
+          }
+        ],
+        where: [
+          { fhirPath: `meta.profile.contains('${profileData.url}')` }
+        ]
+      };
+      
       return {
-        viewDefinition: result.viewDefinition,
-        sqlQuery: result.sqlQuery,
-        platformSql: result.platformSql || {
-          databricks: result.sqlQuery,
-          bigquery: result.sqlQuery,
-          snowflake: result.sqlQuery,
-          postgres: result.sqlQuery,
-          sqlserver: result.sqlQuery
+        viewDefinition,
+        sqlQuery: `-- Fallback SQL query\nCREATE VIEW ${viewDefinition.name} AS\nSELECT id, resourceType\nFROM ${profileData.resourceType}\nWHERE meta.profile LIKE '%${profileData.url}%'`,
+        platformSql: {
+          databricks: `-- Fallback SQL query\nCREATE VIEW ${viewDefinition.name} AS\nSELECT id, resourceType\nFROM ${profileData.resourceType}\nWHERE array_contains(meta.profile, '${profileData.url}')`,
+          bigquery: `-- Fallback SQL query\nCREATE VIEW ${viewDefinition.name} AS\nSELECT id, resourceType\nFROM ${profileData.resourceType}\nWHERE '${profileData.url}' IN UNNEST(meta.profile)`,
+          snowflake: `-- Fallback SQL query\nCREATE VIEW ${viewDefinition.name} AS\nSELECT id, resourceType\nFROM ${profileData.resourceType}\nWHERE array_contains(meta.profile, '${profileData.url}')`,
+          postgres: `-- Fallback SQL query\nCREATE VIEW ${viewDefinition.name} AS\nSELECT id, resourceType\nFROM ${profileData.resourceType}\nWHERE meta.profile @> ARRAY['${profileData.url}']`,
+          sqlserver: `-- Fallback SQL query\nCREATE VIEW ${viewDefinition.name} AS\nSELECT id, resourceType\nFROM ${profileData.resourceType}\nWHERE JSON_QUERY(meta, '$.profile') LIKE '%${profileData.url}%'`
         }
       };
     } catch (parseError) {
-      console.error("Failed to parse JSON:", parseError);
-      console.log("JSON content that failed to parse:", jsonContent.substring(0, 500) + "...");
-      
-      // More aggressive approach to extract JSON - look for any object-like structure
-      const objectMatches = jsonContent.match(/\{[^{}]*\}/g);
-      if (objectMatches && objectMatches.length > 0) {
-        for (const match of objectMatches) {
-          try {
-            const potentialJson = JSON.parse(match);
-            if (potentialJson.viewDefinition && potentialJson.sqlQuery) {
-              return {
-                viewDefinition: potentialJson.viewDefinition,
-                sqlQuery: potentialJson.sqlQuery,
-                platformSql: potentialJson.platformSql || {
-                  databricks: potentialJson.sqlQuery,
-                  bigquery: potentialJson.sqlQuery,
-                  snowflake: potentialJson.sqlQuery,
-                  postgres: potentialJson.sqlQuery,
-                  sqlserver: potentialJson.sqlQuery
-                }
-              };
-            }
-          } catch (e) {
-            // Continue trying other matches
-          }
-        }
-      }
-      
-      throw new Error("Failed to extract valid JSON from Claude's response. Try a simpler profile or adjust options.");
+      console.error("Failed in JSON parsing and recovery:", parseError);
+      throw new Error(`Failed to process Claude's response: ${parseError.message}`);
     }
   } catch (error: any) {
     console.error("Error in transformProfileToViewDefinition:", error);
