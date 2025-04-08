@@ -637,28 +637,102 @@ export async function registerRoutes(app: Express): Promise<Server> {
             return `FROM ${tableName.toLowerCase()}`;
           });
         
-        // Replace common FHIRPath expressions with SQLite JSON extraction syntax
+        // Clean up SQL before processing - convert FHIRPath to SQLite compatible syntax
+        // First, handle specific JSON paths with SQLite syntax for WHERE clause
         adjustedSql = adjustedSql
-          // First, replace all dots with underscores in column names
-          .replace(/(\w+)\.(\w+)/g, (match, p1, p2) => {
-            // Skip if it's in json_extract or part of the table name
-            if (match.includes('json_extract') || p1 === 'resource' || p1 === 'Patient' || p1 === 'Observation') {
-              return match;
-            }
-            return `${p1}_${p2}`;
-          })
-          // Then handle specific JSON paths with SQLite syntax
           .replace(/meta\.profile/g, "json_extract(resource, '$.meta.profile')")
-          .replace(/resource\.(\w+)/g, "json_extract(resource, '$.$1')")
-          .replace(/\[(\d+)\]/g, (match, index) => `[${index}]`) // Keep array indexing
-          .replace(/\.where\(url='([^']+)'\)/g, (match, url) => {
-            return `_by_url('${url}')`;
-          });
+          .replace(/WHERE\s+meta\.profile/g, "WHERE json_extract(resource, '$.meta.profile')");
+          
+        // Replace any URLs with / or . characters with _ for SQLite compatibility
+        adjustedSql = adjustedSql.replace(/http:\/\/hl7\.org/g, "http_hl7_org");
+        adjustedSql = adjustedSql.replace(/http:\/\/hl7_org\/fhir/g, "http_hl7_org_fhir");
         
-        // Replace LIKE/contains with proper SQLite JSON check
+        // Create helper function for extension lookup in SQLite
+        const createExtensionLookupFunction = () => {
+          try {
+            // Create a lookup function for extensions by URL
+            db.function('extension_lookup', (resourceJson, extensionUrl) => {
+              try {
+                const resource = JSON.parse(resourceJson);
+                if (!resource.extension || !Array.isArray(resource.extension)) {
+                  return null;
+                }
+                
+                const extension = resource.extension.find(ext => ext.url === extensionUrl);
+                return extension ? JSON.stringify(extension.value) : null;
+              } catch (e) {
+                return null;
+              }
+            });
+            
+            console.log("Created extension_lookup function for SQLite");
+          } catch (err) {
+            console.warn("Failed to create extension_lookup function:", err);
+          }
+        };
+        
+        // Create the extension lookup function
+        createExtensionLookupFunction();
+        
+        // Find all column definitions in SELECT clause
+        const selectClauseMatch = adjustedSql.match(/SELECT([\s\S]+?)FROM/i);
+        
+        if (selectClauseMatch && selectClauseMatch[1]) {
+          let columnDefinitions = selectClauseMatch[1];
+          
+          // Replace all extension.where() references with JSON path expressions
+          columnDefinitions = columnDefinitions.replace(
+            /extension\.where\(url='([^']+)'\)\.extension\.where\(url='([^']+)'\)\.value(?:_(\w+))?/g, 
+            (match, parentUrl, childUrl, valueType) => {
+              const valuePath = valueType ? `.${valueType}` : '';
+              return `json_extract(resource, '$.extension[?(@.url=="${parentUrl}")].extension[?(@.url=="${childUrl}")].value${valuePath}')`;
+            }
+          );
+          
+          // Replace direct extension.where() references
+          columnDefinitions = columnDefinitions.replace(
+            /extension\.where\(url='([^']+)'\)\.value(?:_(\w+))?/g, 
+            (match, url, valueType) => {
+              const valuePath = valueType ? `.${valueType}` : '';
+              return `json_extract(resource, '$.extension[?(@.url=="${url}")].value${valuePath}')`;
+            }
+          );
+          
+          // Handle nested properties like name[0].family or telecom[0].value
+          columnDefinitions = columnDefinitions.replace(
+            /(\w+)(?:\[(\d+)\])?\.(\w+)(?:\[(\d+)\])?\.(\w+)/g,
+            (match, parent, parentIndex, child, childIndex, prop) => {
+              const pIdx = parentIndex ? `[${parentIndex}]` : '[0]';
+              const cIdx = childIndex ? `[${childIndex}]` : '[0]';
+              return `json_extract(resource, '$.${parent}${pIdx}.${child}${cIdx}.${prop}')`;
+            }
+          );
+          
+          // Handle simple properties like name[0].family
+          columnDefinitions = columnDefinitions.replace(
+            /(\w+)(?:\[(\d+)\])?\.(\w+)/g,
+            (match, parent, index, prop) => {
+              // Skip if already converted to json_extract
+              if (match.includes('json_extract') || parent === 'resource') {
+                return match;
+              }
+              const idx = index ? `[${index}]` : '[0]';
+              return `json_extract(resource, '$.${parent}${idx}.${prop}')`;
+            }
+          );
+          
+          // Update the SQL with the processed column definitions
+          adjustedSql = adjustedSql.replace(selectClauseMatch[0], `SELECT${columnDefinitions}FROM`);
+        }
+        
+        // Replace LIKE/contains with proper SQLite JSON check and escape URL paths
         adjustedSql = adjustedSql.replace(
           /WHERE\s+meta\.profile\s+LIKE\s+'%([^']+)%'/i,
-          `WHERE json_extract(resource, '$.meta.profile') LIKE '%$1%'`
+          (match, url) => {
+            // Make URL compatible with SQLite by replacing problematic characters
+            const escapedUrl = url.replace(/\//g, '_').replace(/\./g, '_');
+            return `WHERE json_extract(resource, '$.meta.profile') LIKE '%${escapedUrl}%'`;
+          }
         );
 
         console.log("Executing adjusted SQL query:", adjustedSql);
