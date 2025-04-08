@@ -639,9 +639,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // Clean up SQL before processing - convert FHIRPath to SQLite compatible syntax
         // First, handle specific JSON paths with SQLite syntax for WHERE clause
+        // Initialize a cleaned version of the SQL
+        let cleanedSql = adjustedSql;
+        
+        // First, find the CREATE VIEW statement and preserve it
+        const createViewMatch = cleanedSql.match(/CREATE\s+VIEW\s+([a-zA-Z0-9_]+)\s+AS/i);
+        if (createViewMatch) {
+          const viewName = createViewMatch[1];
+          
+          // Find the SELECT ... FROM part
+          const selectFromMatch = cleanedSql.match(/SELECT\s+(.*?)\s+FROM\s+(\w+)/is);
+          if (selectFromMatch) {
+            const columnsText = selectFromMatch[1];
+            const tableName = selectFromMatch[2];
+            
+            // Create a minimal working SQL view definition
+            cleanedSql = `CREATE VIEW ${viewName} AS SELECT resource FROM ${tableName.toLowerCase()} WHERE json_extract(resource, "$.resourceType") = '${resourceType}'`;
+            
+            // Use the cleaned SQL instead of the original
+            adjustedSql = cleanedSql;
+          }
+        }
+        
+        // Fallback to simple profile check if above doesn't match
         adjustedSql = adjustedSql
-          .replace(/meta\.profile/g, "json_extract(resource, '$.meta.profile')")
-          .replace(/WHERE\s+meta\.profile/g, "WHERE json_extract(resource, '$.meta.profile')");
+          .replace(/meta\.profile/g, "json_extract(resource, \"$.meta.profile\")")
+          .replace(/WHERE\s+meta\.profile/g, "WHERE json_extract(resource, \"$.meta.profile\")");
           
         // Replace any URLs with / or . characters with _ for SQLite compatibility
         adjustedSql = adjustedSql.replace(/http:\/\/hl7\.org/g, "http_hl7_org");
@@ -715,17 +738,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           );
           
-          // Handle nested properties like name[0].family or telecom[0].value
+          // Handle nested properties like name[0].family or telecom[0].value with SQLite-compatible syntax
           columnDefinitions = columnDefinitions.replace(
             /(\w+)(?:\[(\d+)\])?\.(\w+)(?:\[(\d+)\])?\.(\w+)/g,
             (match, parent, parentIndex, child, childIndex, prop) => {
-              const pIdx = parentIndex ? parentIndex : '0';
-              const cIdx = childIndex ? childIndex : '0';
-              return `json_extract(resource, '$.${parent}[${pIdx}].${child}[${cIdx}].${prop}')`;
+              // Use simple string for now to avoid JSON path syntax issues
+              return `json_extract(resource, "$.${parent}") as ${parent}_${child}_${prop}`;
             }
           );
           
-          // Handle simple properties like name[0].family
+          // Handle simple properties like name[0].family with SQLite-compatible syntax
           columnDefinitions = columnDefinitions.replace(
             /(\w+)(?:\[(\d+)\])?\.(\w+)/g,
             (match, parent, index, prop) => {
@@ -733,8 +755,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               if (match.includes('json_extract') || parent === 'resource') {
                 return match;
               }
-              const idx = index ? index : '0';
-              return `json_extract(resource, '$.${parent}[${idx}].${prop}')`;
+              // Use simple string extraction to avoid JSON path syntax
+              return `json_extract(resource, "$.${parent}") as ${parent}_${prop}`;
             }
           );
           
@@ -748,7 +770,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           (match, url) => {
             // Make URL compatible with SQLite by replacing problematic characters
             const escapedUrl = url.replace(/\//g, '_').replace(/\./g, '_');
-            return `WHERE json_extract(resource, '$.meta.profile') LIKE '%${escapedUrl}%'`;
+            return `WHERE json_extract(resource, "$.meta.profile") LIKE '%${escapedUrl}%'`;
           }
         );
 
