@@ -254,4 +254,184 @@ export class DatabaseStorage implements IStorage {
   }
 }
 
-export const storage = new DatabaseStorage();
+// Use MemStorage for now due to database connection issues
+export class MemStorage implements IStorage {
+  private users: User[] = [];
+  private implementationGuides: ImplementationGuide[] = [];
+  private profiles: Profile[] = [];
+  private transformations: Transformation[] = [];
+  private nextUserId = 1;
+  private nextGuideId = 1;
+  private nextProfileId = 1;
+  private nextTransformationId = 1;
+
+  constructor() {
+    this.initializeUSCore();
+  }
+
+  private async initializeUSCore() {
+    // Initialize US Core Implementation Guides
+    const usCore5: ImplementationGuide = {
+      id: this.nextGuideId++,
+      name: "US Core Implementation Guide",
+      version: "5.0.1",
+      url: "http://hl7.org/fhir/us/core/ImplementationGuide/hl7.fhir.us.core",
+      description: "US Core Implementation Guide v5.0.1"
+    };
+
+    const usCore6: ImplementationGuide = {
+      id: this.nextGuideId++,
+      name: "US Core Implementation Guide",
+      version: "6.1.0",
+      url: "http://hl7.org/fhir/us/core/ImplementationGuide/hl7.fhir.us.core-6.1.0",
+      description: "US Core Implementation Guide v6.1.0"
+    };
+
+    this.implementationGuides.push(usCore5, usCore6);
+
+    // Initialize US Core profiles for both versions
+    const usCore5Profiles = [
+      {
+        id: this.nextProfileId++,
+        implementationGuideId: usCore5.id,
+        resourceType: "Patient",
+        name: "US Core Patient Profile",
+        url: "http://hl7.org/fhir/us/core/StructureDefinition/us-core-patient",
+        version: "5.0.1",
+        description: "US Core Patient Profile"
+      },
+      {
+        id: this.nextProfileId++,
+        implementationGuideId: usCore5.id,
+        resourceType: "Observation",
+        name: "US Core Blood Pressure Profile",
+        url: "http://hl7.org/fhir/us/core/StructureDefinition/us-core-blood-pressure",
+        version: "5.0.1",
+        description: "US Core Blood Pressure Profile"
+      }
+    ];
+
+    const usCore6Profiles = [
+      {
+        id: this.nextProfileId++,
+        implementationGuideId: usCore6.id,
+        resourceType: "Patient",
+        name: "US Core Patient Profile",
+        url: "http://hl7.org/fhir/us/core/StructureDefinition/us-core-patient",
+        version: "6.1.0",
+        description: "US Core Patient Profile"
+      },
+      {
+        id: this.nextProfileId++,
+        implementationGuideId: usCore6.id,
+        resourceType: "Observation",
+        name: "US Core Blood Pressure Profile",
+        url: "http://hl7.org/fhir/us/core/StructureDefinition/us-core-blood-pressure",
+        version: "6.1.0",
+        description: "US Core Blood Pressure Profile"
+      }
+    ];
+
+    this.profiles.push(...usCore5Profiles, ...usCore6Profiles);
+  }
+
+  async getUser(id: number): Promise<User | undefined> {
+    return this.users.find(user => user.id === id);
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    return this.users.find(user => user.username === username);
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const user: User = {
+      id: this.nextUserId++,
+      username: insertUser.username,
+      hashedPassword: insertUser.hashedPassword
+    };
+    this.users.push(user);
+    return user;
+  }
+
+  async getImplementationGuides(): Promise<ImplementationGuide[]> {
+    return this.implementationGuides;
+  }
+
+  async getImplementationGuide(id: number): Promise<ImplementationGuide | undefined> {
+    return this.implementationGuides.find(guide => guide.id === id);
+  }
+
+  async getImplementationGuideByName(name: string): Promise<ImplementationGuide | undefined> {
+    return this.implementationGuides.find(guide => guide.name === name);
+  }
+
+  async createImplementationGuide(insertGuide: InsertImplementationGuide): Promise<ImplementationGuide> {
+    const guide: ImplementationGuide = {
+      id: this.nextGuideId++,
+      name: insertGuide.name,
+      version: insertGuide.version,
+      url: insertGuide.url,
+      description: insertGuide.description
+    };
+    this.implementationGuides.push(guide);
+    return guide;
+  }
+
+  async getProfiles(implementationGuideId: number): Promise<Profile[]> {
+    return this.profiles.filter(profile => profile.implementationGuideId === implementationGuideId);
+  }
+
+  async getProfilesByResourceType(implementationGuideId: number, resourceType: string): Promise<Profile[]> {
+    return this.profiles.filter(profile => 
+      profile.implementationGuideId === implementationGuideId && profile.resourceType === resourceType
+    );
+  }
+
+  async getProfile(id: number): Promise<Profile | undefined> {
+    return this.profiles.find(profile => profile.id === id);
+  }
+
+  async getProfileByUrl(url: string): Promise<Profile | undefined> {
+    return this.profiles.find(profile => profile.url === url);
+  }
+
+  async createProfile(insertProfile: InsertProfile): Promise<Profile> {
+    const profile: Profile = {
+      id: this.nextProfileId++,
+      implementationGuideId: insertProfile.implementationGuideId,
+      resourceType: insertProfile.resourceType,
+      name: insertProfile.name,
+      url: insertProfile.url,
+      version: insertProfile.version,
+      description: insertProfile.description,
+      structureDefinition: insertProfile.structureDefinition
+    };
+    this.profiles.push(profile);
+    return profile;
+  }
+
+  async getTransformations(profileId: number): Promise<Transformation[]> {
+    return this.transformations.filter(transformation => transformation.profileId === profileId);
+  }
+
+  async getTransformation(id: number): Promise<Transformation | undefined> {
+    return this.transformations.find(transformation => transformation.id === id);
+  }
+
+  async createTransformation(insertTransformation: InsertTransformation): Promise<Transformation> {
+    const transformation: Transformation = {
+      id: this.nextTransformationId++,
+      profileId: insertTransformation.profileId,
+      schema: insertTransformation.schema,
+      includeExtensions: insertTransformation.includeExtensions,
+      normalizeTables: insertTransformation.normalizeTables,
+      viewDefinition: insertTransformation.viewDefinition,
+      sqlQuery: insertTransformation.sqlQuery,
+      createdAt: new Date()
+    };
+    this.transformations.push(transformation);
+    return transformation;
+  }
+}
+
+export const storage = new MemStorage();
