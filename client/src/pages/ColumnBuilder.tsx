@@ -63,6 +63,8 @@ export const ColumnBuilder: React.FC<ColumnBuilderProps> = ({
   const [enableNestedElements, setEnableNestedElements] = useState(false);
   const [enableJoinViews, setEnableJoinViews] = useState(false);
   const [joinTables, setJoinTables] = useState<string[]>(['Patient', 'Observation', 'Condition', 'Encounter', 'Procedure']);
+  const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
 
   useEffect(() => {
     if (profile) {
@@ -303,7 +305,13 @@ export const ColumnBuilder: React.FC<ColumnBuilderProps> = ({
       ]
     };
 
-    onGenerateViewDefinition(viewDefinition);
+    // Validate the generated ViewDefinition
+    const validation = validateViewDefinition(viewDefinition);
+    setValidationResult(validation);
+
+    if (validation.isValid) {
+      onGenerateViewDefinition(viewDefinition);
+    }
   };
 
   if (!profile) {
@@ -702,10 +710,121 @@ export const ColumnBuilder: React.FC<ColumnBuilderProps> = ({
         </CardContent>
       </Card>
 
+      {/* Validation Results */}
+      {validationResult && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              {validationResult.isValid ? (
+                <CheckCircle className="h-5 w-5 text-green-600" />
+              ) : (
+                <AlertCircle className="h-5 w-5 text-red-600" />
+              )}
+              ViewDefinition Validation
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {validationResult.errors.length > 0 && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                <h4 className="font-medium text-red-900 mb-2">Errors</h4>
+                <ul className="text-sm text-red-800 space-y-1">
+                  {validationResult.errors.map((error, index) => (
+                    <li key={index} className="flex items-start gap-2">
+                      <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                      {error}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            
+            {validationResult.warnings.length > 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                <h4 className="font-medium text-amber-900 mb-2">Warnings</h4>
+                <ul className="text-sm text-amber-800 space-y-1">
+                  {validationResult.warnings.map((warning, index) => (
+                    <li key={index} className="flex items-start gap-2">
+                      <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                      {warning}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            
+            {validationResult.isValid && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                <div className="flex items-center gap-2 text-green-900">
+                  <CheckCircle className="h-4 w-4" />
+                  <span className="font-medium">ViewDefinition is valid and conforms to HL7 SQL-on-FHIR specification</span>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* SQL Preview */}
+      {showPreview && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              SQL Preview
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowPreview(false)}
+              >
+                Hide Preview
+              </Button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="bg-gray-900 text-green-400 p-4 rounded-lg font-mono text-sm overflow-x-auto">
+              <pre>{generateSQLPreview({
+                resourceType: "ViewDefinition",
+                id: viewName.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+                name: viewName,
+                title: viewTitle,
+                status: "draft",
+                description: description,
+                resource: profile?.resourceType || 'Patient',
+                select: columns.filter(col => col.name && col.path).map(col => ({
+                  column: [{
+                    name: col.name,
+                    path: col.path,
+                    description: col.description,
+                    type: col.type || 'string'
+                  }]
+                })),
+                where: whereClauses.filter(clause => clause.path).map(clause => ({
+                  expression: clause.path,
+                  description: clause.description
+                }))
+              })}</pre>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Generate Button */}
-      <div className="flex justify-center">
-        <Button onClick={generateViewDefinition} size="lg" className="w-full md:w-auto">
-          Generate ViewDefinition
+      <div className="flex justify-between">
+        <div className="flex gap-2">
+          <Button 
+            variant="outline"
+            onClick={() => setShowPreview(!showPreview)}
+            disabled={columns.filter(col => col.name && col.path).length === 0 || !viewName}
+          >
+            {showPreview ? 'Hide' : 'Show'} SQL Preview
+          </Button>
+        </div>
+        <Button 
+          onClick={generateViewDefinition}
+          disabled={columns.filter(col => col.name && col.path).length === 0 || !viewName}
+          size="lg"
+          className={validationResult?.isValid === false ? 'opacity-50' : ''}
+        >
+          {validationResult?.isValid === false ? 'Fix Errors to Generate' : 'Generate ViewDefinition'}
         </Button>
       </div>
     </div>
