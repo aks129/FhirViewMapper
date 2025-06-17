@@ -273,6 +273,9 @@ export const ColumnBuilder: React.FC<ColumnBuilderProps> = ({
     );
   }
 
+  // Debug logging to check for objects being rendered
+  console.log('ColumnBuilder props:', { implementationGuide: typeof implementationGuide, profile: typeof profile });
+
   return (
     <div className="space-y-6">
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
