@@ -214,6 +214,89 @@ export function getFHIRPathAutoComplete(input: string, resourceType: string): st
   return suggestions;
 }
 
+export function getNestedElementExamples(resourceType: string): FHIRPathSuggestion[] {
+  const baseExamples = [
+    {
+      path: "extension.where(url='http://hl7.org/fhir/us/core/StructureDefinition/us-core-race').extension.where(url='ombCategory').valueCoding.code",
+      description: "Race category from US Core extension",
+      type: "code",
+      examples: ["Extract nested extension values"]
+    },
+    {
+      path: "extension.where(url='http://hl7.org/fhir/us/core/StructureDefinition/us-core-ethnicity').extension.where(url='ombCategory').valueCoding.display",
+      description: "Ethnicity display from nested extension",
+      type: "string",
+      examples: ["Complex extension parsing"]
+    },
+    {
+      path: "identifier.where(system='http://terminology.hl7.org/CodeSystem/v2-0203' and type.coding.where(code='MR')).value",
+      description: "Medical record number from complex identifier",
+      type: "string",
+      examples: ["Multi-level filtering"]
+    }
+  ];
+
+  if (resourceType === 'Patient') {
+    return baseExamples.concat([
+      {
+        path: "contact.where(relationship.coding.where(code='C')).name.family",
+        description: "Emergency contact family name",
+        type: "string",
+        examples: ["Nested contact information"]
+      },
+      {
+        path: "communication.where(preferred=true).language.coding.where(system='urn:ietf:bcp:47').code",
+        description: "Preferred language code",
+        type: "code",
+        examples: ["Communication preferences"]
+      }
+    ]);
+  }
+
+  return baseExamples;
+}
+
+export function getJoinExamples(resourceType: string): { joinTable: string; examples: FHIRPathSuggestion[] }[] {
+  const joinExamples = [
+    {
+      joinTable: 'Observation',
+      examples: [
+        {
+          path: "subject.reference",
+          description: "Join condition for Patient-Observation",
+          type: "reference",
+          examples: ["Patient/123 = Observation.subject.reference"]
+        },
+        {
+          path: "code.coding.where(system='http://loinc.org').code",
+          description: "LOINC code from joined observation",
+          type: "code",
+          examples: ["Cross-resource data extraction"]
+        }
+      ]
+    },
+    {
+      joinTable: 'Condition',
+      examples: [
+        {
+          path: "subject.reference",
+          description: "Join condition for Patient-Condition",
+          type: "reference",
+          examples: ["Patient/123 = Condition.subject.reference"]
+        },
+        {
+          path: "category.coding.where(system='http://terminology.hl7.org/CodeSystem/condition-category').code",
+          description: "Condition category from joined resource",
+          type: "code",
+          examples: ["Multi-resource analysis"]
+        }
+      ]
+    }
+  ];
+
+  return joinExamples;
+}
+
 export function getFHIRPathExamples(resourceType: string): { category: string; examples: FHIRPathSuggestion[] }[] {
   const examples: { category: string; examples: FHIRPathSuggestion[] }[] = [];
   

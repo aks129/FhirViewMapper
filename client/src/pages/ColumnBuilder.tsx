@@ -283,7 +283,22 @@ export const ColumnBuilder: React.FC<ColumnBuilderProps> = ({
       where: whereClauses.filter(clause => clause.path).map(clause => ({
         path: clause.path,
         description: clause.description
-      }))
+      })),
+      // Add advanced configuration metadata
+      extension: [
+        ...(enableNestedElements ? [{
+          url: "http://hl7.org/fhir/uv/sql-on-fhir/StructureDefinition/nested-elements",
+          valueBoolean: true
+        }] : []),
+        ...(enableJoinViews ? [{
+          url: "http://hl7.org/fhir/uv/sql-on-fhir/StructureDefinition/join-views",
+          valueBoolean: true,
+          extension: [{
+            url: "availableTables",
+            valueString: joinTables.join(',')
+          }]
+        }] : [])
+      ]
     };
 
     onGenerateViewDefinition(viewDefinition);
@@ -299,8 +314,7 @@ export const ColumnBuilder: React.FC<ColumnBuilderProps> = ({
     );
   }
 
-  // Debug logging to check for objects being rendered
-  console.log('ColumnBuilder props:', { implementationGuide: typeof implementationGuide, profile: typeof profile });
+
 
   return (
     <div className="space-y-6">

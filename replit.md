@@ -148,6 +148,14 @@ The application follows a modern full-stack architecture with clear separation b
 
 ## Recent Changes
 
+- June 17, 2025: Enhanced ViewDefinition Builder with advanced features
+  - Added nested elements support for complex FHIRPath expressions
+  - Implemented join views functionality for multi-resource data extraction
+  - Enhanced column builder with advanced configuration options
+  - Added support for extension parsing and complex identifier handling
+  - Created examples for nested US Core extensions and cross-resource joins
+  - Updated ViewDefinition generation to include extension metadata
+
 - January 17, 2025: Completed comprehensive SQL-on-FHIR ViewDefinition Builder prototype
   - Added interactive column builder with FHIRPath expression mapping
   - Implemented ViewDefinition validation conforming to HL7 v2.0.0-pre spec
