@@ -170,11 +170,11 @@ export const InteractiveBuilder: React.FC = () => {
                   <SelectValue placeholder="Select a profile" />
                 </SelectTrigger>
                 <SelectContent>
-                  {profiles?.map((profile: Profile) => (
+                  {profiles && Array.isArray(profiles) ? profiles.map((profile: Profile) => (
                     <SelectItem key={profile.id} value={profile.id.toString()}>
-                      {String(profile.name || 'Unknown Profile')}
+                      {`${profile.name || 'Unknown Profile'}`}
                     </SelectItem>
-                  ))}
+                  )) : null}
                 </SelectContent>
               </Select>
             </div>
