@@ -850,6 +850,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
             sqlPath = "json_extract(resource, '$.id')";
           } else if (sqlPath === 'resourceType') {
             sqlPath = "json_extract(resource, '$.resourceType')";
+          } else if (sqlPath.includes('.where(') || sqlPath.includes('.first()')) {
+            // Handle complex FHIRPath expressions
+            if (sqlPath.includes('name.where(use = \'official\').family.first()')) {
+              sqlPath = "json_extract(resource, '$.name[0].family[0]')";
+            } else if (sqlPath.includes('name.where(use = \'official\').given.first()')) {
+              sqlPath = "json_extract(resource, '$.name[0].given[0]')";
+            } else if (sqlPath.includes('code.coding.where(system = \'http://loinc.org\').code.first()')) {
+              sqlPath = "json_extract(resource, '$.code.coding[0].code')";
+            } else if (sqlPath.includes('value.ofType(Quantity).value')) {
+              sqlPath = "json_extract(resource, '$.valueQuantity.value')";
+            } else if (sqlPath.includes('value.ofType(Quantity).unit')) {
+              sqlPath = "json_extract(resource, '$.valueQuantity.unit')";
+            } else {
+              // Fallback for other complex paths
+              const simplePath = sqlPath.split('.')[0];
+              sqlPath = `json_extract(resource, '$.${simplePath}')`;
+            }
           } else if (sqlPath.includes('.')) {
             // Simple path conversion
             const pathParts = sqlPath.split('.');
@@ -867,10 +884,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ) || [];
       
       // Add basic resource columns if not present
-      if (!columns.some(col => col.includes('id'))) {
+      if (!columns.some((col: string) => col.includes('id'))) {
         columns.unshift("json_extract(resource, '$.id') AS id");
       }
-      if (!columns.some(col => col.includes('resourceType'))) {
+      if (!columns.some((col: string) => col.includes('resourceType'))) {
         columns.unshift("json_extract(resource, '$.resourceType') AS resource_type");
       }
 
