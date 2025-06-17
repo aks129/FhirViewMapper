@@ -27,13 +27,13 @@ export const InteractiveBuilder: React.FC = () => {
 
   // Fetch resource types for selected guide
   const { data: resourceTypes } = useQuery<string[]>({
-    queryKey: ['/api/implementation-guides', selectedGuide?.id, 'resource-types'],
+    queryKey: [`/api/implementation-guides/${selectedGuide?.id}/resource-types`],
     enabled: !!selectedGuide,
   });
 
   // Fetch profiles for selected resource type
   const { data: profiles } = useQuery<Profile[]>({
-    queryKey: ['/api/implementation-guides', selectedGuide?.id, 'resource-types', selectedResourceType, 'profiles'],
+    queryKey: [`/api/implementation-guides/${selectedGuide?.id}/resource-types/${selectedResourceType}/profiles`],
     enabled: !!selectedGuide && !!selectedResourceType,
   });
 
