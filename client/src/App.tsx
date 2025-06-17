@@ -10,6 +10,7 @@ import SelectImplementationGuide from "@/pages/SelectImplementationGuide";
 import SelectProfile from "@/pages/SelectProfile";
 import { ColumnBuilder } from "@/pages/ColumnBuilder";
 import { ViewDefinitionViewer } from "@/pages/ViewDefinitionViewer";
+import { InteractiveBuilder } from "@/pages/InteractiveBuilder";
 import TransformProfile from "@/pages/TransformProfile";
 import ViewResults from "@/pages/ViewResults";
 
@@ -102,47 +103,8 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       
-      {/* ViewDefinition Builder Flow */}
-      <Route path="/builder">
-        <SelectImplementationGuide 
-          onSelect={handleSelectImplementationGuide}
-          selectedGuide={transformerState.implementationGuide}
-        />
-      </Route>
-      
-      <Route path="/builder/select-profile">
-        <SelectProfile 
-          implementationGuide={transformerState.implementationGuide}
-          onSelectResourceType={handleSelectResourceType}
-          onSelectProfile={handleSelectProfile}
-          selectedResourceType={transformerState.resourceType}
-          selectedProfile={transformerState.profile}
-        />
-      </Route>
-      
-      <Route path="/builder/column-builder">
-        <ColumnBuilder 
-          implementationGuide={transformerState.implementationGuide}
-          profile={transformerState.profile}
-          onGenerateViewDefinition={handleGenerateViewDefinition}
-        />
-      </Route>
-      
-      <Route path="/builder/view-definition">
-        {viewDefinition ? (
-          <ViewDefinitionViewer 
-            viewDefinition={viewDefinition}
-            onExecuteView={handleExecuteViewDefinition}
-            onNewViewDefinition={handleNewTransformation}
-            executionResults={executionResults}
-          />
-        ) : (
-          <div className="text-center p-8">
-            <h3 className="text-lg font-medium mb-2">No ViewDefinition Generated</h3>
-            <p className="text-muted-foreground">Please go back and generate a ViewDefinition first.</p>
-          </div>
-        )}
-      </Route>
+      {/* Interactive ViewDefinition Builder Flow */}
+      <Route path="/builder" component={InteractiveBuilder} />
       
       {/* Legacy AI Transform Flow */}
       <Route path="/transform">
