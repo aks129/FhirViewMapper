@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -41,6 +42,7 @@ export const ColumnBuilder: React.FC<ColumnBuilderProps> = ({
   profile,
   onGenerateViewDefinition
 }) => {
+  const [, setLocation] = useLocation();
   const [columns, setColumns] = useState<ColumnDefinition[]>([]);
   const [whereClauses, setWhereClauses] = useState<WhereClause[]>([]);
   const [viewName, setViewName] = useState('');
@@ -247,6 +249,8 @@ export const ColumnBuilder: React.FC<ColumnBuilderProps> = ({
     };
 
     onGenerateViewDefinition(viewDefinition);
+    // Automatically navigate to the view definition viewer
+    setLocation('/builder/view-definition');
   };
 
   if (!profile) {

@@ -827,6 +827,115 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Execute ViewDefinition endpoint
+  app.post("/api/execute-viewdefinition", (req: Request, res: Response) => {
+    try {
+      const { viewDefinition, resourceType = 'Patient' } = req.body as any;
+      
+      if (!viewDefinition) {
+        return res.status(400).json({ message: "ViewDefinition is required" });
+      }
+
+      console.log("Executing ViewDefinition:", viewDefinition.name);
+
+      // Convert ViewDefinition to SQL
+      const tableName = (resourceType as string).toLowerCase();
+      const columns = viewDefinition.select?.flatMap((sel: any) => 
+        sel.column?.map((col: any) => {
+          // Simple FHIRPath to SQL conversion for basic paths
+          let sqlPath = col.path;
+          
+          // Handle basic JSON extractions
+          if (sqlPath === 'getResourceKey()') {
+            sqlPath = "json_extract(resource, '$.id')";
+          } else if (sqlPath === 'resourceType') {
+            sqlPath = "json_extract(resource, '$.resourceType')";
+          } else if (sqlPath.includes('.')) {
+            // Simple path conversion
+            const pathParts = sqlPath.split('.');
+            if (pathParts.length === 2) {
+              sqlPath = `json_extract(resource, '$.${pathParts[1]}')`;
+            } else {
+              sqlPath = `json_extract(resource, '$.${sqlPath}')`;
+            }
+          } else {
+            sqlPath = `json_extract(resource, '$.${sqlPath}')`;
+          }
+          
+          return `${sqlPath} AS ${col.name}`;
+        }) || []
+      ) || [];
+      
+      // Add basic resource columns if not present
+      if (!columns.some(col => col.includes('id'))) {
+        columns.unshift("json_extract(resource, '$.id') AS id");
+      }
+      if (!columns.some(col => col.includes('resourceType'))) {
+        columns.unshift("json_extract(resource, '$.resourceType') AS resource_type");
+      }
+
+      const whereConditions = viewDefinition.where?.map((w: any) => {
+        let condition = w.path;
+        // Basic where clause conversion
+        if (condition.includes('meta.profile')) {
+          condition = condition.replace('meta.profile', "json_extract(resource, '$.meta.profile')");
+        }
+        return condition;
+      }) || [];
+      
+      // Add default resource type filter
+      whereConditions.push(`json_extract(resource, "$.resourceType") = '${resourceType}'`);
+      
+      let sql = `CREATE VIEW IF NOT EXISTS ${viewDefinition.name || 'generated_view'} AS\n`;
+      sql += `SELECT\n  ${columns.join(',\n  ')}\n`;
+      sql += `FROM ${tableName}\n`;
+      
+      if (whereConditions.length > 0) {
+        sql += `WHERE\n  ${whereConditions.join('\n  AND ')}\n`;
+      }
+
+      console.log("Generated SQL:", sql);
+
+      // Execute the SQL
+      try {
+        db.exec(sql);
+        console.log(`View ${viewDefinition.name || 'generated_view'} created successfully`);
+
+        // Query the view
+        const queryResult = db.prepare(`SELECT * FROM ${viewDefinition.name || 'generated_view'} LIMIT 100`).all();
+        console.log(`Query returned ${queryResult.length} rows`);
+
+        const results = Array.isArray(queryResult) ? queryResult : [];
+        const resourceTypeToUse = resourceType as keyof typeof sampleData;
+        
+        res.json({
+          success: true,
+          viewName: viewDefinition.name || 'generated_view',
+          sampleData: sampleData[resourceTypeToUse],
+          results,
+          executedSql: sql,
+          message: `ViewDefinition "${viewDefinition.name}" executed successfully.`,
+          rowCount: results.length
+        });
+      } catch (sqlError: any) {
+        console.error("SQL execution error:", sqlError);
+        return res.status(400).json({ 
+          success: false,
+          message: "SQL execution error", 
+          error: sqlError.message || String(sqlError),
+          executedSql: sql
+        });
+      }
+    } catch (error: any) {
+      console.error("Error executing ViewDefinition:", error);
+      res.status(500).json({ 
+        success: false,
+        message: "Failed to execute ViewDefinition", 
+        error: error.message || String(error)
+      });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

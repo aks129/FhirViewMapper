@@ -18,59 +18,80 @@ const Home: React.FC = () => {
           </p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6 mb-12">
-          <Card>
-            <CardHeader>
-              <CardTitle>Select Implementation Guide</CardTitle>
+        <div className="grid md:grid-cols-2 gap-8 mb-12">
+          {/* Interactive ViewDefinition Builder */}
+          <Card className="border-2 border-primary/20">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-xl">Interactive ViewDefinition Builder</CardTitle>
               <CardDescription>
-                Choose from supported Implementation Guides like US Core
+                Build ViewDefinitions with a visual column mapper and validator
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Browse and select from popular FHIR Implementation Guides to find the profiles
-                you need to transform.
-              </p>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 gap-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium">1</div>
+                  <span className="text-sm">Select Implementation Guide & Profile</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium">2</div>
+                  <span className="text-sm">Configure columns with FHIRPath expressions</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium">3</div>
+                  <span className="text-sm">Add where clauses and validation</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium">4</div>
+                  <span className="text-sm">Generate & execute ViewDefinition</span>
+                </div>
+              </div>
             </CardContent>
+            <CardFooter>
+              <Link href="/builder" className="w-full">
+                <Button size="lg" className="w-full">
+                  Start Building
+                </Button>
+              </Link>
+            </CardFooter>
           </Card>
 
+          {/* AI-Powered Transform */}
           <Card>
-            <CardHeader>
-              <CardTitle>Select Profile</CardTitle>
+            <CardHeader className="pb-4">
+              <CardTitle className="text-xl">AI-Powered Transform</CardTitle>
               <CardDescription>
-                Browse available profiles from the selected guide
+                Use Claude AI to automatically generate ViewDefinitions
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Choose from resource types like Patient, Observation, or Condition and select
-                the specific profile you want to convert.
-              </p>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 gap-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-full bg-secondary/50 flex items-center justify-center text-xs font-medium">1</div>
+                  <span className="text-sm">Select Implementation Guide & Profile</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-full bg-secondary/50 flex items-center justify-center text-xs font-medium">2</div>
+                  <span className="text-sm">Configure transformation options</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-full bg-secondary/50 flex items-center justify-center text-xs font-medium">3</div>
+                  <span className="text-sm">AI automatically generates ViewDefinition</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-full bg-secondary/50 flex items-center justify-center text-xs font-medium">4</div>
+                  <span className="text-sm">Review and export results</span>
+                </div>
+              </div>
             </CardContent>
+            <CardFooter>
+              <Link href="/transform" className="w-full">
+                <Button variant="outline" size="lg" className="w-full">
+                  Use AI Transform
+                </Button>
+              </Link>
+            </CardFooter>
           </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Generate SQL View</CardTitle>
-              <CardDescription>
-                Transform profiles into SQL on FHIR view definitions
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Using Claude AI, convert FHIR profiles into SQL view definitions that follow
-                the SQL on FHIR specification.
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="text-center mb-12">
-          <Link href="/transform">
-            <Button size="lg" className="px-8">
-              Start Transformation
-            </Button>
-          </Link>
         </div>
 
         <div className="bg-muted p-6 rounded-lg">
