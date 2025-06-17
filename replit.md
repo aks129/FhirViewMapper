@@ -148,6 +148,14 @@ The application follows a modern full-stack architecture with clear separation b
 
 ## Recent Changes
 
+- June 17, 2025: Completed comprehensive QA debugging and validation system
+  - Fixed React child rendering errors with proper string conversion
+  - Resolved API endpoint mismatches for resource types and profiles
+  - Added comprehensive HL7 SQL-on-FHIR validation with real-time feedback
+  - Integrated SQL preview component with syntax highlighting
+  - Enhanced ViewDefinition generation with proper schema compliance
+  - Validated full workflow from Implementation Guide selection to SQL execution
+
 - June 17, 2025: Enhanced ViewDefinition Builder with advanced features
   - Added nested elements support for complex FHIRPath expressions
   - Implemented join views functionality for multi-resource data extraction
