@@ -21,24 +21,24 @@ export const InteractiveBuilder: React.FC = () => {
   const [executionResults, setExecutionResults] = useState<any>(null);
 
   // Fetch implementation guides
-  const { data: guides } = useQuery({
+  const { data: guides } = useQuery<ImplementationGuide[]>({
     queryKey: ['/api/implementation-guides'],
   });
 
   // Fetch resource types for selected guide
-  const { data: resourceTypes } = useQuery({
+  const { data: resourceTypes } = useQuery<string[]>({
     queryKey: ['/api/implementation-guides', selectedGuide?.id, 'resource-types'],
     enabled: !!selectedGuide,
   });
 
   // Fetch profiles for selected resource type
-  const { data: profiles } = useQuery({
+  const { data: profiles } = useQuery<Profile[]>({
     queryKey: ['/api/implementation-guides', selectedGuide?.id, 'resource-types', selectedResourceType, 'profiles'],
     enabled: !!selectedGuide && !!selectedResourceType,
   });
 
   const handleGuideSelect = (guideId: string) => {
-    const guide = (guides as ImplementationGuide[])?.find((g: ImplementationGuide) => g.id.toString() === guideId);
+    const guide = guides?.find((g: ImplementationGuide) => g.id.toString() === guideId);
     setSelectedGuide(guide || null);
     setSelectedResourceType('');
     setSelectedProfile(null);
@@ -50,7 +50,7 @@ export const InteractiveBuilder: React.FC = () => {
   };
 
   const handleProfileSelect = (profileId: string) => {
-    const profile = (profiles as Profile[])?.find((p: Profile) => p.id.toString() === profileId);
+    const profile = profiles?.find((p: Profile) => p.id.toString() === profileId);
     setSelectedProfile(profile || null);
   };
 
@@ -133,7 +133,7 @@ export const InteractiveBuilder: React.FC = () => {
                 <SelectValue placeholder="Select an Implementation Guide" />
               </SelectTrigger>
               <SelectContent>
-                {(guides as ImplementationGuide[])?.map((guide: ImplementationGuide) => (
+                {guides?.map((guide: ImplementationGuide) => (
                   <SelectItem key={guide.id} value={guide.id.toString()}>
                     {guide.name} v{guide.version}
                   </SelectItem>
@@ -151,7 +151,7 @@ export const InteractiveBuilder: React.FC = () => {
                   <SelectValue placeholder="Select a resource type" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(resourceTypes as string[])?.map((resourceType: string) => (
+                  {resourceTypes?.map((resourceType: string) => (
                     <SelectItem key={resourceType} value={resourceType}>
                       {resourceType}
                     </SelectItem>
@@ -170,7 +170,7 @@ export const InteractiveBuilder: React.FC = () => {
                   <SelectValue placeholder="Select a profile" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(profiles as Profile[])?.map((profile: Profile) => (
+                  {profiles?.map((profile: Profile) => (
                     <SelectItem key={profile.id} value={profile.id.toString()}>
                       {profile.name}
                     </SelectItem>
