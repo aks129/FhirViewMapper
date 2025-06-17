@@ -134,8 +134,8 @@ export const InteractiveBuilder: React.FC = () => {
               </SelectTrigger>
               <SelectContent>
                 {guides && Array.isArray(guides) ? guides.map((guide: ImplementationGuide) => (
-                  <SelectItem key={guide.id} value={guide.id.toString()}>
-                    {`${guide.name || 'Unknown'} v${guide.version || 'Unknown'}`}
+                  <SelectItem key={`guide-${guide.id}`} value={guide.id.toString()}>
+                    {`${String(guide.name || 'Unknown')} v${String(guide.version || 'Unknown')}`}
                   </SelectItem>
                 )) : null}
               </SelectContent>
@@ -152,8 +152,8 @@ export const InteractiveBuilder: React.FC = () => {
                 </SelectTrigger>
                 <SelectContent>
                   {resourceTypes && Array.isArray(resourceTypes) ? resourceTypes.map((resourceType: string) => (
-                    <SelectItem key={resourceType} value={resourceType}>
-                      {`${resourceType}`}
+                    <SelectItem key={`resource-${resourceType}`} value={resourceType}>
+                      {String(resourceType)}
                     </SelectItem>
                   )) : null}
                 </SelectContent>
@@ -171,8 +171,8 @@ export const InteractiveBuilder: React.FC = () => {
                 </SelectTrigger>
                 <SelectContent>
                   {profiles && Array.isArray(profiles) ? profiles.map((profile: Profile) => (
-                    <SelectItem key={profile.id} value={profile.id.toString()}>
-                      {`${profile.name || 'Unknown Profile'}`}
+                    <SelectItem key={`profile-${profile.id}`} value={profile.id.toString()}>
+                      {String(profile.name || 'Unknown Profile')}
                     </SelectItem>
                   )) : null}
                 </SelectContent>
@@ -187,15 +187,15 @@ export const InteractiveBuilder: React.FC = () => {
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <Badge variant="outline">Guide</Badge>
-                  <span className="text-sm">{selectedGuide?.name || 'Unknown'} v{selectedGuide?.version || 'Unknown'}</span>
+                  <span className="text-sm">{String(selectedGuide?.name || 'Unknown')} v{String(selectedGuide?.version || 'Unknown')}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline">Type</Badge>
-                  <span className="text-sm">{selectedResourceType || 'Unknown'}</span>
+                  <span className="text-sm">{String(selectedResourceType || 'Unknown')}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline">Profile</Badge>
-                  <span className="text-sm">{selectedProfile?.name || 'Unknown'}</span>
+                  <span className="text-sm">{String(selectedProfile?.name || 'Unknown')}</span>
                 </div>
               </div>
             </div>
@@ -223,7 +223,7 @@ export const InteractiveBuilder: React.FC = () => {
         <div>
           <h1 className="text-3xl font-bold">Build Your ViewDefinition</h1>
           <p className="text-muted-foreground mt-2">
-            Configure columns and filters for {selectedProfile?.name || 'selected profile'}
+            Configure columns and filters for {String(selectedProfile?.name || 'selected profile')}
           </p>
         </div>
         <Button variant="outline" onClick={handleBackToSetup}>
