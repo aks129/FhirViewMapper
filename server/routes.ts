@@ -932,7 +932,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }) || [];
       
       // Add default resource type filter
-      whereConditions.push(`json_extract(resource, "$.resourceType") = '${resourceType}'`);
+      whereConditions.push(`json_extract(resource, '$.resourceType') = '${resourceType}'`);
       
       let sql = `CREATE VIEW IF NOT EXISTS ${viewDefinition.name || 'generated_view'} AS\n`;
       sql += `SELECT\n  ${columns.join(',\n  ')}\n`;
@@ -967,10 +967,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       } catch (sqlError: any) {
         console.error("SQL execution error:", sqlError);
+        
+        // Provide helpful error messages for common issues
+        let userFriendlyMessage = 'SQL execution error';
+        let suggestions: string[] = [];
+        
+        if (sqlError.message.includes('no such column')) {
+          const columnMatch = sqlError.message.match(/no such column: (\w+)/);
+          if (columnMatch) {
+            userFriendlyMessage = `Column '${columnMatch[1]}' not found`;
+            suggestions.push(`Try using json_extract(resource, '$.${columnMatch[1]}') instead of '${columnMatch[1]}'`);
+            suggestions.push('Check that your FHIRPath expression is properly converted to SQL JSON extraction');
+          }
+        } else if (sqlError.message.includes('no such table')) {
+          userFriendlyMessage = 'Table not found - check your resource type';
+          suggestions.push('Ensure the resource type matches available sample data');
+        } else if (sqlError.message.includes('syntax error')) {
+          userFriendlyMessage = 'SQL syntax error in generated query';
+          suggestions.push('Check your FHIRPath expressions for proper syntax');
+        } else if (sqlError.message.includes('near')) {
+          userFriendlyMessage = 'SQL parsing error in query';
+          suggestions.push('Review FHIRPath expressions for unsupported syntax');
+          suggestions.push('Complex expressions may need manual SQL conversion');
+        }
+        
         return res.status(400).json({ 
           success: false,
-          message: "SQL execution error", 
+          message: userFriendlyMessage, 
           error: sqlError.message || String(sqlError),
+          suggestions,
           executedSql: sql
         });
       }

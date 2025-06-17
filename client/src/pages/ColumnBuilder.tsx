@@ -350,6 +350,41 @@ export const ColumnBuilder: React.FC<ColumnBuilderProps> = ({
           </CardTitle>
         </CardHeader>
         <CardContent>
+          {/* FHIRPath Examples Panel */}
+          {showExamples && profile && (
+            <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h3 className="font-semibold text-blue-900 mb-3">FHIRPath Examples for {profile.resourceType}</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {getFHIRPathExamples(profile.resourceType).map((category, categoryIndex) => (
+                  <div key={categoryIndex} className="space-y-2">
+                    <h4 className="text-sm font-medium text-blue-800">{category.category}</h4>
+                    <div className="space-y-1">
+                      {category.examples.map((example, exampleIndex) => (
+                        <div 
+                          key={exampleIndex}
+                          className="cursor-pointer text-xs p-2 bg-white border border-blue-100 rounded hover:bg-blue-50"
+                          onClick={() => {
+                            const emptyColumn = columns.find(col => !col.path);
+                            if (emptyColumn) {
+                              updateColumn(emptyColumn.id, { 
+                                path: example.path,
+                                name: example.path.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase(),
+                                description: example.description
+                              });
+                            }
+                          }}
+                        >
+                          <code className="text-purple-700">{example.path}</code>
+                          <p className="text-gray-600 mt-1">{example.description}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          
           <div className="space-y-4">
             {columns.map((column) => (
               <div key={column.id} className="border rounded-lg p-4 space-y-3">
