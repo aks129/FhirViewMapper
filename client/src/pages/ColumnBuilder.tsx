@@ -7,6 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Trash2, Plus, Info, AlertCircle, CheckCircle, HelpCircle } from 'lucide-react';
 import { Profile, ImplementationGuide } from '@/lib/types';
 import { validateFHIRPath, getPathSuggestions, getFHIRPathExamples, FHIRPathSuggestion } from '@/lib/fhirpath-validator';
@@ -24,6 +25,13 @@ interface ColumnDefinition {
   unionAll?: boolean;
   isConstant?: boolean;
   constantValue?: string;
+  // New options for nested elements
+  includeNested?: boolean;
+  nestedPath?: string;
+  // Options for joins
+  joinType?: 'inner' | 'left' | 'right' | 'full';
+  joinCondition?: string;
+  joinTable?: string;
 }
 
 interface WhereClause {
@@ -51,6 +59,9 @@ export const ColumnBuilder: React.FC<ColumnBuilderProps> = ({
   const [description, setDescription] = useState('');
   const [showExamples, setShowExamples] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [enableNestedElements, setEnableNestedElements] = useState(false);
+  const [enableJoinViews, setEnableJoinViews] = useState(false);
+  const [joinTables, setJoinTables] = useState<string[]>(['Patient', 'Observation', 'Condition', 'Encounter', 'Procedure']);
 
   useEffect(() => {
     if (profile) {
@@ -252,6 +263,21 @@ export const ColumnBuilder: React.FC<ColumnBuilderProps> = ({
         if (col.forEachOrNull) selectItem.forEachOrNull = col.path;
         if (col.unionAll) selectItem.unionAll = true;
 
+        // Add nested elements if enabled
+        if (col.includeNested && col.nestedPath) {
+          selectItem.column[0].nestedPath = col.nestedPath;
+          selectItem.column[0].isNested = true;
+        }
+
+        // Add join configuration if enabled
+        if (enableJoinViews && col.joinTable && col.joinCondition) {
+          selectItem.join = {
+            type: col.joinType || 'left',
+            table: col.joinTable,
+            condition: col.joinCondition
+          };
+        }
+
         return selectItem;
       }),
       where: whereClauses.filter(clause => clause.path).map(clause => ({
@@ -324,6 +350,47 @@ export const ColumnBuilder: React.FC<ColumnBuilderProps> = ({
           <div className="flex items-center gap-2">
             <Badge variant="outline">Resource Type: {profile?.resourceType || 'Unknown'}</Badge>
             <Badge variant="outline">Profile: {profile?.name || 'Unknown'}</Badge>
+          </div>
+          
+          {/* Advanced Options */}
+          <div className="border-t pt-4 space-y-4">
+            <h3 className="font-medium text-sm">Advanced Options</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="enable-nested" 
+                  checked={enableNestedElements}
+                  onCheckedChange={(checked) => setEnableNestedElements(!!checked)}
+                />
+                <Label htmlFor="enable-nested" className="text-sm">
+                  Include nested elements (complex FHIRPath expressions)
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="enable-joins" 
+                  checked={enableJoinViews}
+                  onCheckedChange={(checked) => setEnableJoinViews(!!checked)}
+                />
+                <Label htmlFor="enable-joins" className="text-sm">
+                  Enable join views with related resources
+                </Label>
+              </div>
+            </div>
+            {enableJoinViews && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-sm text-blue-800 mb-2">
+                  Join views allow combining data from multiple FHIR resource types.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {joinTables.map((table) => (
+                    <Badge key={table} variant="secondary" className="text-xs">
+                      {table}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -454,31 +521,113 @@ export const ColumnBuilder: React.FC<ColumnBuilderProps> = ({
                   />
                 </div>
 
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`${column.id}-forEach`}
-                      checked={column.forEach || false}
-                      onCheckedChange={(checked) => updateColumn(column.id, { forEach: checked as boolean })}
-                    />
-                    <Label htmlFor={`${column.id}-forEach`} className="text-sm">forEach</Label>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`${column.id}-forEach`}
+                        checked={column.forEach || false}
+                        onCheckedChange={(checked) => updateColumn(column.id, { forEach: checked as boolean })}
+                      />
+                      <Label htmlFor={`${column.id}-forEach`} className="text-sm">forEach</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`${column.id}-forEachOrNull`}
+                        checked={column.forEachOrNull || false}
+                        onCheckedChange={(checked) => updateColumn(column.id, { forEachOrNull: checked as boolean })}
+                      />
+                      <Label htmlFor={`${column.id}-forEachOrNull`} className="text-sm">forEachOrNull</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`${column.id}-unionAll`}
+                        checked={column.unionAll || false}
+                        onCheckedChange={(checked) => updateColumn(column.id, { unionAll: checked as boolean })}
+                      />
+                      <Label htmlFor={`${column.id}-unionAll`} className="text-sm">unionAll</Label>
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`${column.id}-forEachOrNull`}
-                      checked={column.forEachOrNull || false}
-                      onCheckedChange={(checked) => updateColumn(column.id, { forEachOrNull: checked as boolean })}
-                    />
-                    <Label htmlFor={`${column.id}-forEachOrNull`} className="text-sm">forEachOrNull</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`${column.id}-unionAll`}
-                      checked={column.unionAll || false}
-                      onCheckedChange={(checked) => updateColumn(column.id, { unionAll: checked as boolean })}
-                    />
-                    <Label htmlFor={`${column.id}-unionAll`} className="text-sm">unionAll</Label>
-                  </div>
+
+                  {/* Nested Elements Options */}
+                  {enableNestedElements && (
+                    <div className="border-t pt-3 space-y-3">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`${column.id}-nested`}
+                          checked={column.includeNested || false}
+                          onCheckedChange={(checked) => updateColumn(column.id, { includeNested: checked as boolean })}
+                        />
+                        <Label htmlFor={`${column.id}-nested`} className="text-sm font-medium">Include nested elements</Label>
+                      </div>
+                      {column.includeNested && (
+                        <div>
+                          <Label className="text-sm">Nested Path Expression</Label>
+                          <Input
+                            value={column.nestedPath || ''}
+                            onChange={(e) => updateColumn(column.id, { nestedPath: e.target.value })}
+                            placeholder="e.g., extension.where(url='http://example.com').value"
+                            className="font-mono text-sm"
+                          />
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Use complex FHIRPath expressions to extract nested data structures
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Join Options */}
+                  {enableJoinViews && (
+                    <div className="border-t pt-3 space-y-3">
+                      <h4 className="text-sm font-medium">Join Configuration</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div>
+                          <Label className="text-sm">Join Type</Label>
+                          <select
+                            value={column.joinType || 'left'}
+                            onChange={(e) => updateColumn(column.id, { joinType: e.target.value as 'inner' | 'left' | 'right' | 'full' })}
+                            className="h-8 w-full rounded border px-2 text-sm"
+                          >
+                            <option value="inner">INNER JOIN</option>
+                            <option value="left">LEFT JOIN</option>
+                            <option value="right">RIGHT JOIN</option>
+                            <option value="full">FULL JOIN</option>
+                          </select>
+                        </div>
+                        <div>
+                          <Label className="text-sm">Join Table</Label>
+                          <select
+                            value={column.joinTable || ''}
+                            onChange={(e) => updateColumn(column.id, { joinTable: e.target.value })}
+                            className="h-8 w-full rounded border px-2 text-sm"
+                          >
+                            <option value="">Select table</option>
+                            {joinTables.map((table) => (
+                              <option key={table} value={table}>{table}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <Label className="text-sm">Join Condition</Label>
+                          <Input
+                            value={column.joinCondition || ''}
+                            onChange={(e) => updateColumn(column.id, { joinCondition: e.target.value })}
+                            placeholder="subject.reference"
+                            className="font-mono text-sm h-8"
+                          />
+                        </div>
+                      </div>
+                      {column.joinTable && (
+                        <div className="bg-amber-50 border border-amber-200 rounded p-2">
+                          <p className="text-xs text-amber-800">
+                            <strong>Join Example:</strong> {column.joinType?.toUpperCase()} JOIN {column.joinTable} 
+                            {column.joinCondition && ` ON ${column.joinCondition}`}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
