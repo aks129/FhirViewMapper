@@ -261,8 +261,6 @@ export const ColumnBuilder: React.FC<ColumnBuilderProps> = ({
     };
 
     onGenerateViewDefinition(viewDefinition);
-    // Automatically navigate to the view definition viewer
-    setLocation('/builder/view-definition');
   };
 
   if (!profile) {
@@ -280,7 +278,7 @@ export const ColumnBuilder: React.FC<ColumnBuilderProps> = ({
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <h2 className="text-xl font-semibold mb-2">ViewDefinition Builder</h2>
         <p className="text-sm text-blue-800">
-          Configure columns and filters for your SQL-on-FHIR ViewDefinition based on {profile.name}
+          Configure columns and filters for your SQL-on-FHIR ViewDefinition based on {profile?.name || 'selected profile'}
         </p>
       </div>
 
@@ -321,8 +319,8 @@ export const ColumnBuilder: React.FC<ColumnBuilderProps> = ({
             />
           </div>
           <div className="flex items-center gap-2">
-            <Badge variant="outline">Resource Type: {profile.resourceType}</Badge>
-            <Badge variant="outline">Profile: {profile.name}</Badge>
+            <Badge variant="outline">Resource Type: {profile?.resourceType || 'Unknown'}</Badge>
+            <Badge variant="outline">Profile: {profile?.name || 'Unknown'}</Badge>
           </div>
         </CardContent>
       </Card>
