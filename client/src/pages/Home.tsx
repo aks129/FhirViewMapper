@@ -10,11 +10,11 @@ const Home: React.FC = () => {
       <div className="container mx-auto px-4 py-6">
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold tracking-tight mb-4">
-            FHIR Profile to SQL View Definition Transformer
+            SQL-on-FHIR ViewDefinition Builder
           </h1>
           <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-            Convert HL7 Implementation Guide profiles to SQL on FHIR view definitions
-            using Claude AI.
+            Build SQL-on-FHIR ViewDefinition resources from HL7 Implementation Guide profiles
+            with an interactive column mapper and validator.
           </p>
         </div>
 

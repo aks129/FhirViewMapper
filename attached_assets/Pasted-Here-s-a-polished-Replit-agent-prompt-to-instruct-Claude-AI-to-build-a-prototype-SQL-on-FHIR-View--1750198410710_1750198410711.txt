@@ -1,0 +1,62 @@
+Here’s a polished Replit agent prompt to instruct Claude AI to build a prototype **SQL-on-FHIR View Definition Builder**, based on the NPJ article and HL7 spec:
+
+---
+
+**🎯 Replit Agent Prompt – SQL‑on‑FHIR View Definition Builder Prototype**
+
+You are an AI assistant building a **prototype web app** on Replit that lets users select:
+
+* An **Implementation Guide** (e.g. US Core),
+* One of its **FHIR profiles** (e.g. Patient, Observation),
+* And then *auto‑generate* a **SQL‑on‑FHIR ViewDefinition** JSON resource (per HL7 “ViewDefinition” spec v2.0.0‑pre).
+
+### 👣 Step‑by‑Step Requirements
+
+1. **Fetch and parse Implementation Guide** – load IG JSON structure (e.g. US Core) to extract available profiles and their FHIRPath element definitions.
+2. **Profile selector UI** – dropdown: select one profile/resource type.
+3. **Column builder UI** – after selecting profile, show its key elements (e.g. id, identifier, birthDate). For each, allow:
+
+   * Column *name* input,
+   * FHIRPath expression input (pre‑filled suggestion based on profile element),
+   * Optional flags: `forEach`, `forEachOrNull`, `unionAll`, constants.
+4. **Where clause builder** – allow adding `.where()` filters via FHIRPath (e.g. `active = true`, `code=coding.where(...)`).
+5. **JSON ViewDefinition output** – generate full ViewDefinition resource:
+
+   ```json
+   {
+     "resourceType": "ViewDefinition",
+     "resource": "<ProfileResourceType>",
+     "name": "...",
+     "title": "...",
+     "status": "draft",
+     "select": [ ... ],
+     "where": [ ... ],
+     "constant": [ ... if used]
+   }
+   ```
+
+   Conform to HL7 SQL‑on‑FHIR spec ([build.fhir.org][1], [researchgate.net][2], [nature.com][3], [health-samurai.io][4]).
+6. **Validation** – ensure generated JSON matches spec schema, using JSON Schema (or ig publisher validation).
+7. **Preview / Execute** – allow sample FHIR R4 resource upload (or NDJSON), run the view using a simple runner like Pathling or DuckDB+FHIRPath, display results in tabular form ([nature.com][3]).
+8. **Export** – allow downloading the ViewDefinition JSON or SQL runner output as CSV.
+
+### 📚 Reference & APIs
+
+* NPJ “SQL on FHIR” paper for spec rationale and directive structure ([nature.com][3]).
+* HL7 ViewDefinition StructureDefinition (v2.0.0‑pre) spec details ([build.fhir.org][1]).
+* Health‑Samurai blog for sample JSON ViewDefinition snippets ([health-samurai.io][4]).
+
+### 💻 Technical Stack Suggestions (you choose):
+
+* Frontend: React or Svelte for form-based builder,
+* Backend: Node.js to render and validate JSON,
+* Runner: Offline FHIRPath engine (e.g. fhirpath.js + DuckDB) to test views.
+
+---
+
+With this prompt, Claude will get clear design steps: parse IGs, UI for select/filter/column, build conforming ViewDefinition, validate it, and optionally execute on sample data. Let me know if you want it interactive or scaffolded code suggestions!
+
+[1]: https://build.fhir.org/ig/FHIR/sql-on-fhir-v2/StructureDefinition-ViewDefinition.html?utm_source=chatgpt.com "View Definition - SQL on FHIR v2.0.0-pre"
+[2]: https://www.researchgate.net/publication/392528453_SQL_on_FHIR_-_Tabular_views_of_FHIR_data_using_FHIRPath?utm_source=chatgpt.com "(PDF) SQL on FHIR - Tabular views of FHIR data using FHIRPath"
+[3]: https://www.nature.com/articles/s41746-025-01708-w?utm_source=chatgpt.com "SQL on FHIR - Tabular views of FHIR data using FHIRPath - Nature"
+[4]: https://www.health-samurai.io/articles/what-is-a-viewdefinition?utm_source=chatgpt.com "SQL on FHIR: What is a ViewDefinition, and how does it work?"
