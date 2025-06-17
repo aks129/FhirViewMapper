@@ -1,0 +1,86 @@
+Here’s a **QA-focused Replit AI Agent prompt** designed to validate that everything in the **SQL-on-FHIR View Definition Builder** prototype is functioning correctly. This can be used **after the initial prototype is created** to confirm completeness, correctness, and usability across features:
+
+---
+
+**✅ Prompt: Functionality and QA Validation for SQL-on-FHIR View Definition Builder**
+
+You are a QA engineer validating a Replit prototype for a **SQL-on-FHIR View Definition Builder**. The goal is to ensure that every component works correctly, generates valid output per HL7 standards, and provides a smooth end-user experience.
+
+Please test and verify the following:
+
+---
+
+### 🔍 FUNCTIONAL TESTS
+
+#### 1. **Implementation Guide Loading**
+
+* [ ] Can the app load an Implementation Guide (e.g. US Core) from a local JSON file or external URL?
+* [ ] Does it parse available **profiles** (e.g. Patient, Observation, Condition) and list them in a dropdown?
+
+#### 2. **Profile Selection**
+
+* [ ] Upon selecting a profile, are relevant **elements and paths** loaded (e.g. `Patient.birthDate`, `Patient.identifier.value`)?
+* [ ] Are column suggestions based on StructureDefinition `element.path` values and FHIRPath mappings?
+
+#### 3. **Column Builder**
+
+* [ ] Can user add/remove columns?
+* [ ] Can user input or select:
+
+  * Column name
+  * FHIRPath expression
+  * `forEach`, `unionAll`, `forEachOrNull`, and `constant` flags
+* [ ] Is the ViewDefinition's `select` array populated correctly?
+
+#### 4. **Where Clause Editor**
+
+* [ ] Can user add filters using valid FHIRPath (e.g. `status='active'`)?
+* [ ] Are invalid FHIRPath expressions flagged?
+
+#### 5. **ViewDefinition Output**
+
+* [ ] Is the generated ViewDefinition valid JSON?
+* [ ] Does it conform to the HL7 `ViewDefinition` specification (v2.0.0-pre)?
+* [ ] Does it include `resource`, `name`, `title`, `status`, `select`, and optional `where` or `constant`?
+
+#### 6. **Validation Engine**
+
+* [ ] Does the system validate ViewDefinition JSON against its schema (JSON Schema or HL7 IG Publisher)?
+* [ ] Do errors get reported clearly to the user?
+
+#### 7. **Preview / Execute**
+
+* [ ] Can users upload a sample FHIR resource (JSON or NDJSON)?
+* [ ] Does the tool run the generated ViewDefinition logic (FHIRPath evaluation)?
+* [ ] Are results displayed in a table?
+
+#### 8. **Export Options**
+
+* [ ] Can users export the ViewDefinition as a `.json` file?
+* [ ] Can users export the execution result as a `.csv` file?
+
+---
+
+### 🧪 EDGE CASES TO TEST
+
+* Load a malformed Implementation Guide
+* Use invalid FHIRPath syntax
+* Add 0 columns and try to generate ViewDefinition
+* Use deeply nested FHIRPath expressions
+* Try with an unknown or custom profile
+
+---
+
+### 🧠 Bonus: UX Suggestions
+
+* Is the builder intuitive and beginner-friendly?
+* Do form fields auto-fill intelligently based on IG info?
+* Are errors user-friendly and non-technical?
+
+---
+
+Return a checklist of passed/failed validations and suggested improvements.
+
+---
+
+Let me know if you want to convert this into a test suite script or use a tool like Cypress or Playwright for automated testing.

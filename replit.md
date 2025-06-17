@@ -146,9 +146,19 @@ The application follows a modern full-stack architecture with clear separation b
 - `ANTHROPIC_API_KEY`: Claude AI API key (required for transformations)
 - `NODE_ENV`: Environment setting (development/production)
 
+## Recent Changes
+
+- January 17, 2025: Completed comprehensive SQL-on-FHIR ViewDefinition Builder prototype
+  - Added interactive column builder with FHIRPath expression mapping
+  - Implemented ViewDefinition validation conforming to HL7 v2.0.0-pre spec
+  - Created visual where clause builder for filtering resources
+  - Added SQL execution capability for testing generated views
+  - Integrated both interactive builder and AI-powered transform workflows
+
 ## Changelog
 
 - June 17, 2025. Initial setup
+- January 17, 2025. Transformed to SQL-on-FHIR ViewDefinition Builder prototype
 
 ## User Preferences
 
