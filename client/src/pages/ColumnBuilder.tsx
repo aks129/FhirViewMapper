@@ -351,11 +351,11 @@ export const ColumnBuilder: React.FC<ColumnBuilderProps> = ({
           {/* FHIRPath Examples Panel */}
           {showExamples && profile && (
             <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h3 className="font-semibold text-blue-900 mb-3">FHIRPath Examples for {profile.resourceType}</h3>
+              <h3 className="font-semibold text-blue-900 mb-3">FHIRPath Examples for {profile?.resourceType || 'Unknown'}</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {getFHIRPathExamples(profile.resourceType).map((category, categoryIndex) => (
                   <div key={categoryIndex} className="space-y-2">
-                    <h4 className="text-sm font-medium text-blue-800">{category.category}</h4>
+                    <h4 className="text-sm font-medium text-blue-800">{String(category.category || 'Unknown Category')}</h4>
                     <div className="space-y-1">
                       {category.examples.map((example, exampleIndex) => (
                         <div 
@@ -372,8 +372,8 @@ export const ColumnBuilder: React.FC<ColumnBuilderProps> = ({
                             }
                           }}
                         >
-                          <code className="text-purple-700">{example.path}</code>
-                          <p className="text-gray-600 mt-1">{example.description}</p>
+                          <code className="text-purple-700">{String(example.path || '')}</code>
+                          <p className="text-gray-600 mt-1">{String(example.description || '')}</p>
                         </div>
                       ))}
                     </div>

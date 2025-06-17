@@ -223,7 +223,7 @@ export const InteractiveBuilder: React.FC = () => {
         <div>
           <h1 className="text-3xl font-bold">Build Your ViewDefinition</h1>
           <p className="text-muted-foreground mt-2">
-            Configure columns and filters for {selectedProfile?.name}
+            Configure columns and filters for {selectedProfile?.name || 'selected profile'}
           </p>
         </div>
         <Button variant="outline" onClick={handleBackToSetup}>
