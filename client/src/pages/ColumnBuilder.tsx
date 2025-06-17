@@ -7,8 +7,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Trash2, Plus, Info } from 'lucide-react';
+import { Trash2, Plus, Info, AlertCircle, CheckCircle, HelpCircle } from 'lucide-react';
 import { Profile, ImplementationGuide } from '@/lib/types';
+import { validateFHIRPath, getPathSuggestions, getFHIRPathExamples, FHIRPathSuggestion } from '@/lib/fhirpath-validator';
 
 interface ColumnDefinition {
   id: string;
@@ -48,6 +49,8 @@ export const ColumnBuilder: React.FC<ColumnBuilderProps> = ({
   const [viewName, setViewName] = useState('');
   const [viewTitle, setViewTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [showExamples, setShowExamples] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (profile) {
@@ -191,6 +194,15 @@ export const ColumnBuilder: React.FC<ColumnBuilderProps> = ({
   };
 
   const updateColumn = (id: string, updates: Partial<ColumnDefinition>) => {
+    // Validate FHIRPath if path is being updated
+    if (updates.path !== undefined && profile) {
+      const validation = validateFHIRPath(updates.path, profile.resourceType);
+      setValidationErrors(prev => ({
+        ...prev,
+        [id]: validation.isValid ? '' : validation.error || 'Invalid FHIRPath expression'
+      }));
+    }
+    
     setColumns(columns.map(col => col.id === id ? { ...col, ...updates } : col));
   };
 
@@ -320,10 +332,21 @@ export const ColumnBuilder: React.FC<ColumnBuilderProps> = ({
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             Select Columns
-            <Button onClick={addColumn} size="sm" variant="outline">
-              <Plus className="h-4 w-4 mr-2" />
-              Add Column
-            </Button>
+            <div className="flex gap-2">
+              <Button 
+                onClick={() => setShowExamples(!showExamples)} 
+                size="sm" 
+                variant="ghost"
+                className="text-blue-600 hover:text-blue-700"
+              >
+                <HelpCircle className="h-4 w-4 mr-2" />
+                {showExamples ? 'Hide' : 'Show'} Examples
+              </Button>
+              <Button onClick={addColumn} size="sm" variant="outline">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Column
+              </Button>
+            </div>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -360,11 +383,29 @@ export const ColumnBuilder: React.FC<ColumnBuilderProps> = ({
                   </div>
                   <div>
                     <Label>FHIRPath Expression</Label>
-                    <Input
-                      value={column.path}
-                      onChange={(e) => updateColumn(column.id, { path: e.target.value })}
-                      placeholder="e.g., name.family.first()"
-                    />
+                    <div className="relative">
+                      <Input
+                        value={column.path}
+                        onChange={(e) => updateColumn(column.id, { path: e.target.value })}
+                        placeholder="e.g., name.family.first()"
+                        className={`font-mono text-sm pr-8 ${
+                          validationErrors[column.id] ? 'border-red-500' : 
+                          column.path && !validationErrors[column.id] ? 'border-green-500' : ''
+                        }`}
+                      />
+                      <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
+                        {validationErrors[column.id] ? (
+                          <AlertCircle className="h-4 w-4 text-red-500" />
+                        ) : column.path && !validationErrors[column.id] ? (
+                          <CheckCircle className="h-4 w-4 text-green-500" />
+                        ) : null}
+                      </div>
+                    </div>
+                    {validationErrors[column.id] && (
+                      <p className="text-sm text-red-600 mt-1">
+                        {validationErrors[column.id]}
+                      </p>
+                    )}
                   </div>
                 </div>
 

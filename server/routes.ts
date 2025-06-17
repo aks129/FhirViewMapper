@@ -893,10 +893,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const whereConditions = viewDefinition.where?.map((w: any) => {
         let condition = w.path;
-        // Basic where clause conversion
+        
+        // Enhanced FHIRPath to SQL conversion for where clauses
         if (condition.includes('meta.profile')) {
           condition = condition.replace('meta.profile', "json_extract(resource, '$.meta.profile')");
+        } else if (condition.includes(' = ')) {
+          // Handle simple equality conditions like "active = true"
+          const [fieldPath, value] = condition.split(' = ').map((s: string) => s.trim());
+          
+          // Convert field path to JSON extraction
+          if (fieldPath && !fieldPath.includes('json_extract')) {
+            const jsonPath = `json_extract(resource, '$.${fieldPath}')`;
+            condition = `${jsonPath} = ${value}`;
+          }
+        } else if (condition.includes('.exists()')) {
+          // Handle .exists() expressions
+          const fieldPath = condition.replace('.exists()', '').trim();
+          condition = `json_extract(resource, '$.${fieldPath}') IS NOT NULL`;
+        } else if (condition.includes('.where(') && condition.includes(').exists()')) {
+          // Handle complex where().exists() patterns
+          const match = condition.match(/(.+)\.where\((.+)\)\.exists\(\)/);
+          if (match) {
+            const [, basePath, whereClause] = match;
+            // For meta.profile.where($this = 'url').exists() patterns
+            if (basePath === 'meta.profile' && whereClause.includes('$this =')) {
+              const urlMatch = whereClause.match(/\$this\s*=\s*['"]([^'"]+)['"]/);
+              if (urlMatch) {
+                condition = `json_extract(resource, '$.meta.profile') LIKE '%${urlMatch[1]}%'`;
+              }
+            }
+          }
+        } else if (!condition.includes('json_extract') && !condition.includes('(')) {
+          // Simple field references without operators
+          condition = `json_extract(resource, '$.${condition}') IS NOT NULL`;
         }
+        
         return condition;
       }) || [];
       
