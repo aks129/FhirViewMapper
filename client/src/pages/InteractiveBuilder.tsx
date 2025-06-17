@@ -133,11 +133,11 @@ export const InteractiveBuilder: React.FC = () => {
                 <SelectValue placeholder="Select an Implementation Guide" />
               </SelectTrigger>
               <SelectContent>
-                {guides?.map((guide: ImplementationGuide) => (
+                {guides && Array.isArray(guides) ? guides.map((guide: ImplementationGuide) => (
                   <SelectItem key={guide.id} value={guide.id.toString()}>
-                    {guide.name} v{guide.version}
+                    {`${guide.name || 'Unknown'} v${guide.version || 'Unknown'}`}
                   </SelectItem>
-                ))}
+                )) : null}
               </SelectContent>
             </Select>
           </div>
@@ -151,11 +151,11 @@ export const InteractiveBuilder: React.FC = () => {
                   <SelectValue placeholder="Select a resource type" />
                 </SelectTrigger>
                 <SelectContent>
-                  {resourceTypes?.map((resourceType: string) => (
+                  {resourceTypes && Array.isArray(resourceTypes) ? resourceTypes.map((resourceType: string) => (
                     <SelectItem key={resourceType} value={resourceType}>
-                      {resourceType}
+                      {`${resourceType}`}
                     </SelectItem>
-                  ))}
+                  )) : null}
                 </SelectContent>
               </Select>
             </div>
@@ -172,7 +172,7 @@ export const InteractiveBuilder: React.FC = () => {
                 <SelectContent>
                   {profiles?.map((profile: Profile) => (
                     <SelectItem key={profile.id} value={profile.id.toString()}>
-                      {profile.name}
+                      {String(profile.name || 'Unknown Profile')}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -187,15 +187,15 @@ export const InteractiveBuilder: React.FC = () => {
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <Badge variant="outline">Guide</Badge>
-                  <span className="text-sm">{selectedGuide?.name} v{selectedGuide?.version}</span>
+                  <span className="text-sm">{selectedGuide?.name || 'Unknown'} v{selectedGuide?.version || 'Unknown'}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline">Type</Badge>
-                  <span className="text-sm">{selectedResourceType}</span>
+                  <span className="text-sm">{selectedResourceType || 'Unknown'}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline">Profile</Badge>
-                  <span className="text-sm">{selectedProfile.name}</span>
+                  <span className="text-sm">{selectedProfile?.name || 'Unknown'}</span>
                 </div>
               </div>
             </div>
