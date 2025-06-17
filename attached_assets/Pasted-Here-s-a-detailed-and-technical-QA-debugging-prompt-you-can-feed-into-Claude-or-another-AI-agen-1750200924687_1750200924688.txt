@@ -1,0 +1,140 @@
+Here's a **detailed and technical QA/debugging prompt** you can feed into Claude (or another AI agent on Replit) to **test and fix** a non-working **SQL-on-FHIR ViewDefinition Builder**. This version is intended to help the AI isolate what's broken and rebuild missing logic in a step-by-step, verifiable manner.
+
+---
+
+### 🔧 DEBUG + QA PROMPT FOR CLAUDE / REPLIT AGENT
+
+**You are a full-stack engineer and QA tester. You’re reviewing a prototype ViewDefinition Builder for SQL-on-FHIR that is NOT currently functioning. Your job is to debug, validate, and fix it.**
+
+The builder should let users:
+
+1. Select an existing **FHIR Implementation Guide** (like US Core),
+2. Select a **FHIR Profile** (e.g. `Patient`, `Observation`),
+3. Build a **ViewDefinition** JSON object using element paths and filters, and
+4. Export a valid HL7 SQL-on-FHIR `ViewDefinition` resource per spec.
+
+---
+
+### 🚨 High-Level Debug Checklist
+
+Please walk through each of the following areas, inspect the current code (React, HTML, JS, etc.), **note what’s broken or missing**, and **provide fixes**:
+
+---
+
+### 1. 📥 IG and Profile Loading
+
+* [ ] Does the builder successfully fetch or import a FHIR Implementation Guide (JSON format)?
+
+  * If loading fails: inspect the fetch/parse logic.
+  * Should parse `StructureDefinition` resources and list available profiles.
+* [ ] On profile selection: does it extract all `element.path` values and relevant types from the StructureDefinition?
+
+  * If broken: fix how profile JSON is interpreted and mapped to user-friendly UI fields.
+
+---
+
+### 2. 🧱 Column Builder Logic
+
+* [ ] Does the UI let the user add columns?
+* [ ] Each column should allow:
+
+  * Custom column name (string)
+  * FHIRPath expression (auto-filled or manually entered)
+  * Optional flags: `forEach`, `forEachOrNull`, `unionAll`, `constant`
+* [ ] Validate that the columns are stored in internal state and rendered in the `ViewDefinition.select` array.
+
+❗If broken: ensure state management and mapping to the final ViewDefinition is correct (JS object structure).
+
+---
+
+### 3. 🔍 Where Clause Builder
+
+* [ ] Can users add `.where()` filters?
+* [ ] Ensure user input is validated as FHIRPath expressions and properly added to the `ViewDefinition.where` array.
+* [ ] Highlight invalid expressions with a helpful error message.
+
+---
+
+### 4. 🧾 JSON ViewDefinition Generator
+
+* [ ] Is the output JSON valid?
+* [ ] Output should look like:
+
+```json
+{
+  "resourceType": "ViewDefinition",
+  "name": "View_Patient_Basic",
+  "title": "Patient Basic Info",
+  "status": "draft",
+  "resource": "Patient",
+  "select": [
+    {
+      "name": "birthdate",
+      "expression": "birthDate"
+    }
+  ],
+  "where": [
+    {
+      "expression": "active = true"
+    }
+  ]
+}
+```
+
+❗If JSON is invalid:
+
+* Confirm array structures (`select`, `where`) are correctly populated.
+* Check for undefined or null values in field names.
+* Ensure the resource type is set correctly (`resource: "Patient"` etc.)
+
+---
+
+### 5. 🧪 Schema Validation
+
+* [ ] Validate the generated ViewDefinition using the [HL7 ViewDefinition StructureDefinition](https://build.fhir.org/ig/HL7/sql-on-fhir/StructureDefinition-ViewDefinition.html).
+* [ ] If failing, highlight which elements (e.g. `select[0].expression`) are malformed or missing.
+
+---
+
+### 6. 📤 Export / Download
+
+* [ ] Ensure there’s a working `Export JSON` button.
+* [ ] Validate that output is downloadable as `ViewDefinition.json`.
+
+---
+
+### ✅ TEST CASES TO RUN
+
+1. **Load US Core IG**
+
+   * Select `Patient`
+   * Add column: `name`, expression: `name.given.first()`
+   * Add filter: `gender='female'`
+   * Export: should match a valid ViewDefinition
+
+2. **Malformed column**
+
+   * Expression: `foo.bar.baz` (should flag error if not valid in profile)
+
+3. **Multiple columns + filters**
+
+   * Test combinations of `forEach`, `constant`, etc.
+
+4. **Missing fields**
+
+   * Try exporting ViewDefinition without selecting a profile (should prevent export)
+
+---
+
+### 🧰 Suggest Fixes As Needed
+
+After testing, output a list:
+
+* ✅ Features working
+* ❌ Features broken or missing
+* 🔧 Fixes applied (code snippets)
+* 🧠 Improvements suggested (optional)
+
+---
+
+Let me know if you’d like this turned into an automated test suite, integrated into CI/CD, or converted into Cypress tests for frontend QA.

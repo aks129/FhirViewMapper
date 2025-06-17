@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Trash2, Plus, Info, AlertCircle, CheckCircle, HelpCircle } from 'lucide-react';
 import { Profile, ImplementationGuide } from '@/lib/types';
 import { validateFHIRPath, getPathSuggestions, getFHIRPathExamples, FHIRPathSuggestion } from '@/lib/fhirpath-validator';
+import { validateViewDefinition, generateSQLPreview, type ValidationResult } from '@/lib/viewdefinition-validator';
 
 interface ColumnDefinition {
   id: string;
@@ -254,11 +255,12 @@ export const ColumnBuilder: React.FC<ColumnBuilderProps> = ({
               name: col.name,
               path: col.path,
               description: col.description,
-              type: col.type
+              type: col.type || 'string'
             }
           ]
         };
 
+        // Add SQL-on-FHIR specific attributes
         if (col.forEach) selectItem.forEach = col.path;
         if (col.forEachOrNull) selectItem.forEachOrNull = col.path;
         if (col.unionAll) selectItem.unionAll = true;
@@ -281,7 +283,7 @@ export const ColumnBuilder: React.FC<ColumnBuilderProps> = ({
         return selectItem;
       }),
       where: whereClauses.filter(clause => clause.path).map(clause => ({
-        path: clause.path,
+        expression: clause.path,
         description: clause.description
       })),
       // Add advanced configuration metadata
